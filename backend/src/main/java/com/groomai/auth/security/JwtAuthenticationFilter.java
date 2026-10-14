@@ -1,0 +1,81 @@
+package com.groomai.auth.security;
+
+import com.groomai.user.entity.User;
+import com.groomai.user.repository.UserRepository;
+import io.jsonwebtoken.Claims;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtService jwtService;
+    private final UserRepository userRepository;
+
+    public JwtAuthenticationFilter(JwtService jwtService, UserRepository userRepository) {
+        this.jwtService = jwtService;
+        this.userRepository = userRepository;
+    }
+
+    @Override
+    protected void doFilterInternal(
+        @NonNull HttpServletRequest request,
+        @NonNull HttpServletResponse response,
+        @NonNull FilterChain filterChain
+    ) throws ServletException, IOException {
+
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String token = authHeader.substring(7).trim();
+        Optional<Claims> claimsOpt = jwtService.parseClaims(token);
+
+        if (claimsOpt.isPresent()) {
+            Claims claims = claimsOpt.get();
+            try {
+                UUID userId = UUID.fromString(claims.getSubject());
+                Optional<User> userOpt = userRepository.findById(userId);
+
+                if (userOpt.isPresent()) {
+                    User user = userOpt.get();
+                    Instant tokenIat = claims.getIssuedAt().toInstant();
+
+                    // Reject access tokens issued before tokens_invalid_before timestamp
+                    boolean isTokenValid = user.getTokensInvalidBefore() == null
+                        || !tokenIat.isBefore(user.getTokensInvalidBefore());
+
+                    if (isTokenValid && SecurityContextHolder.getContext().getAuthentication() == null) {
+                        UserPrincipal principal = new UserPrincipal(user.getId(), user.getEmail(), user.getRole());
+                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            principal,
+                            null,
+                            principal.getAuthorities()
+                        );
+                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    }
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Invalid UUID subject, continue chain without setting authentication
+            }
+        }
+
+        filterChain.doFilter(request, response);
+    }
+}
