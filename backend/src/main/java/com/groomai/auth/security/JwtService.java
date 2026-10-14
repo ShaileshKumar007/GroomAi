@@ -106,4 +106,20 @@ public class JwtService {
     public long getRefreshTokenExpirationMs() {
         return jwtProperties.refreshTokenExpirationMs();
     }
+
+    public SecretKey getSigningKey() {
+        return signingKey;
+    }
+
+    public String generateExpiredToken(User user) {
+        Instant now = Instant.now().minusSeconds(3600);
+        return Jwts.builder()
+            .subject(user.getId().toString())
+            .claim("email", user.getEmail())
+            .claim("role", user.getRole())
+            .issuedAt(Date.from(now.minusSeconds(100)))
+            .expiration(Date.from(now))
+            .signWith(signingKey)
+            .compact();
+    }
 }

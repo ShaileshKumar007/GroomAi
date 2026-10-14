@@ -14,6 +14,10 @@ import com.groomai.auth.service.AuthService;
 import com.groomai.common.config.SecurityConfig;
 import com.groomai.common.exception.GlobalExceptionHandler;
 import com.groomai.user.repository.UserRepository;
+import com.groomai.auth.dto.UserSummaryResponse;
+import com.groomai.user.entity.User;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +28,11 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Date;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -43,6 +52,9 @@ class AuthControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private JwtService jwtService;
 
     @MockBean
     private AuthService authService;
@@ -139,5 +151,103 @@ class AuthControllerTest {
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
             .andExpect(jsonPath("$.message").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("GET /me: token issued before tokens_invalid_before returns 401 Unauthorized")
+    void getMe_withTokenBeforeCutoff_shouldReturn401() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+            .id(userId)
+            .email("cutoff@example.com")
+            .role("ROLE_USER")
+            .tokensInvalidBefore(Instant.now().plusSeconds(10))
+            .build();
+
+        String token = jwtService.generateAccessToken(user);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        mockMvc.perform(get("/api/v1/auth/me")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+            .andExpect(jsonPath("$.error").value("Unauthorized"));
+    }
+
+    @Test
+    @DisplayName("GET /me: expired token returns 401 Unauthorized")
+    void getMe_withExpiredToken_shouldReturn401() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = User.builder().id(userId).email("exp@example.com").role("ROLE_USER").build();
+        String expiredToken = jwtService.generateExpiredToken(user);
+
+        mockMvc.perform(get("/api/v1/auth/me")
+                .header("Authorization", "Bearer " + expiredToken))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("GET /me: token with invalid signature returns 401 Unauthorized")
+    void getMe_withInvalidSignature_shouldReturn401() throws Exception {
+        SecretKey otherKey = Keys.hmacShaKeyFor("different-secret-key-that-is-at-least-256-bits-long-123456!".getBytes(StandardCharsets.UTF_8));
+        String forgedToken = Jwts.builder()
+            .subject(UUID.randomUUID().toString())
+            .issuedAt(new Date())
+            .expiration(Date.from(Instant.now().plusSeconds(900)))
+            .signWith(otherKey)
+            .compact();
+
+        mockMvc.perform(get("/api/v1/auth/me")
+                .header("Authorization", "Bearer " + forgedToken))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("GET /me: malformed token returns 401 Unauthorized")
+    void getMe_withMalformedToken_shouldReturn401() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/me")
+                .header("Authorization", "Bearer not.a.valid.jwt.token"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("GET /me: token for deleted user returns 401 Unauthorized")
+    void getMe_whenUserDeleted_shouldReturn401() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = User.builder().id(userId).email("deleted@example.com").role("ROLE_USER").build();
+        String token = jwtService.generateAccessToken(user);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/v1/auth/me")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("GET /me: valid token returns 200 OK with UserSummaryResponse")
+    void getMe_withValidToken_shouldReturn200() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = User.builder().id(userId).email("valid@example.com").role("ROLE_USER").build();
+        String token = jwtService.generateAccessToken(user);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(authService.getCurrentUser(userId)).thenReturn(new UserSummaryResponse(
+            userId,
+            "valid@example.com",
+            "Valid User",
+            Instant.parse("2026-10-15T00:00:00Z")
+        ));
+
+        mockMvc.perform(get("/api/v1/auth/me")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.userId").value(userId.toString()))
+            .andExpect(jsonPath("$.email").value("valid@example.com"))
+            .andExpect(jsonPath("$.displayName").value("Valid User"));
     }
 }

@@ -32,8 +32,17 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -183,6 +192,68 @@ class AuthPostgresIntegrationTest {
         assertThatThrownBy(() -> authService.refresh(new RefreshTokenRequest(originalRefreshToken)))
             .isInstanceOf(InvalidTokenException.class)
             .hasMessageContaining("already been revoked or rotated");
+
+        // Verify that the newly rotated token was ALSO revoked as part of the reuse security response
+        String newHash = TokenHashUtil.hashToken(rotateResponse.refreshToken());
+        Optional<RefreshToken> newTokenDb = refreshTokenRepository.findByTokenHash(newHash);
+        assertThat(newTokenDb).isPresent();
+        assertThat(newTokenDb.get().isRevoked()).isTrue();
+    }
+
+    @Test
+    @DisplayName("PostgreSQL: concurrent refresh requests atomically consume token and trigger reuse defense")
+    void postgres_refresh_concurrentRequestsAtomicConsumption() throws Exception {
+        String email = "concurrent_" + UUID.randomUUID() + "@example.com";
+        AuthResponse registerResponse = authService.register(new RegisterRequest(email, "SecurePass123!", "Concurrent User"));
+        String tokenToRefresh = registerResponse.refreshToken();
+
+        int threadCount = 2;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CyclicBarrier barrier = new CyclicBarrier(threadCount);
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger failureCount = new AtomicInteger(0);
+
+        List<Future<?>> futures = new ArrayList<>();
+        for (int i = 0; i < threadCount; i++) {
+            futures.add(executor.submit(() -> {
+                try {
+                    barrier.await(5, TimeUnit.SECONDS);
+                    authService.refresh(new RefreshTokenRequest(tokenToRefresh));
+                    successCount.incrementAndGet();
+                } catch (InvalidTokenException e) {
+                    failureCount.incrementAndGet();
+                } catch (Exception e) {
+                    log.error("Unexpected error during concurrent test", e);
+                }
+            }));
+        }
+
+        for (Future<?> f : futures) {
+            f.get(10, TimeUnit.SECONDS);
+        }
+        executor.shutdown();
+
+        // Exactly one request must succeed in consuming the token; the other must fail with InvalidTokenException
+        assertThat(successCount.get()).isEqualTo(1);
+        assertThat(failureCount.get()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("PostgreSQL: user tokens_invalid_before cutoff invalidates older refresh tokens")
+    void postgres_tokenCutoff_invalidatesOlderTokens() {
+        String email = "cutoff_pg_" + UUID.randomUUID() + "@example.com";
+        AuthResponse registerResponse = authService.register(new RegisterRequest(email, "SecurePass123!", "Cutoff User"));
+        UUID userId = registerResponse.userId();
+
+        // Update tokens_invalid_before to 1 second in the future (security event)
+        User user = userRepository.findById(userId).orElseThrow();
+        user.setTokensInvalidBefore(Instant.now().plusSeconds(1));
+        userRepository.save(user);
+
+        // Refresh token created before the cutoff must be rejected
+        assertThatThrownBy(() -> authService.refresh(new RefreshTokenRequest(registerResponse.refreshToken())))
+            .isInstanceOf(InvalidTokenException.class)
+            .hasMessageContaining("security event");
     }
 
     @Test
