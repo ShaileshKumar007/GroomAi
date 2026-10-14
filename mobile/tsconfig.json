@@ -5,6 +5,7 @@
     "noImplicitAny": true,
     "strictNullChecks": true,
     "noUnusedLocals": true,
+    "types": ["jest", "node"],
     "paths": {
       "@/*": ["./src/*"]
     }

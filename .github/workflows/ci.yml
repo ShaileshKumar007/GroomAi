@@ -88,6 +88,9 @@ jobs:
       - name: Run TypeScript Strict Check
         run: npm run type-check
 
+      - name: Run Mobile Unit Tests
+        run: npm test
+
       - name: Run Expo Bundle Verification
         env:
           EXPO_NO_TELEMETRY: '1'
