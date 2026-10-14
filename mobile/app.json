@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Groom.ai",
+    "slug": "groomai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android"],
+    "scheme": "groomai",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.groomai.app"
+    },
+    "android": {
+      "package": "com.groomai.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A"
+      }
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
