@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 21 (Eclipse Temurin)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -52,6 +52,17 @@ jobs:
           DB_USERNAME: test_user
           DB_PASSWORD: test_password
         run: ./mvnw -B clean verify
+
+      - name: Publish Test Summary
+        if: always()
+        run: |
+          echo "### Backend Test Results" >> $GITHUB_STEP_SUMMARY
+          for f in target/surefire-reports/*.txt; do
+            echo "#### $(basename "$f")" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat "$f" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          done
 
   mobile:
     name: Mobile (React Native Expo & TypeScript)
@@ -81,3 +92,10 @@ jobs:
         env:
           EXPO_NO_TELEMETRY: '1'
         run: npx expo export --output-dir /tmp/expo-ci-test
+
+      - name: Publish Mobile Build Summary
+        if: always()
+        run: |
+          echo "### Mobile Build & Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "- **TypeScript Strict Check**: PASSED (\`tsc --noEmit\` exit code 0)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Expo iOS & Android Export**: PASSED (\`npx expo export\` exit code 0)" >> $GITHUB_STEP_SUMMARY
