@@ -1,7 +1,7 @@
 # Groom.ai — Product Requirements Document (PRD)
 
-**Document Version:** 1.1.0  
-**Status:** Draft — Proposed Baseline (Pending Stakeholder Approval)  
+**Document Version:** 2.0.0  
+**Status:** Approved Product Baseline (Pivot to Wardrobe-First Personal Stylist)  
 **Author:** Product & Architecture Working Group  
 **Last Updated:** October 2026  
 
@@ -10,27 +10,28 @@
 ## 1. Executive Summary & Product Vision
 
 ### 1.1 Executive Summary
-**Groom.ai** is an AI-powered personal grooming assistant delivered as a cross-platform mobile application (iOS and Android). The product helps individuals make confident, personalized grooming decisions by analyzing facial characteristics and user-declared lifestyle preferences to provide practical hairstyle and beard recommendations, accompanied by clear rationale and actionable maintenance routines.
+**Groom.ai** is an AI-powered personal stylist delivered as a cross-platform mobile application (iOS and Android). The product helps individuals make confident, well-styled outfit decisions using clothes they already own. By combining digital wardrobe cataloging, deterministic outfit grammar rules, local weather and occasion context, and multimodal AI styling explanations, Groom.ai transforms the daily friction of "what should I wear?" into a fast, effortless, and personalized routine.
 
 ### 1.2 Product Vision
-Personal grooming directly influences self-confidence and professional presence, yet most individuals navigate grooming choices through guesswork, generic internet searches, or inconsistent advice from barbers. Groom.ai aims to democratize personalized grooming consultation, transforming a high-friction, uncertain task into an accessible, structured, and private digital experience.
+Most people own plenty of clothes but experience daily hesitation, decision fatigue, and repetitive dressing habits because they lack an objective, intuitive way to combine their existing garments. Traditional fashion apps focus almost entirely on selling new clothes, and generic style inspiration boards (e.g., Pinterest) show outfits made of pieces the user does not own. 
+
+Groom.ai takes a **wardrobe-first approach**: empowering users to look their best with their existing clothes, reducing unnecessary purchases, and suggesting outfits tailored to the day's weather, dress code, and wear history. In the long term, Groom.ai will evolve into a comprehensive personal appearance assistant, adding hairstyle, beard, and grooming consultations once the core wardrobe experience is established.
 
 ---
 
 ## 2. Problem Statement & Target Audience
 
 ### 2.1 Problem Statement
-1. **Uncertainty in Selection:** Most individuals do not know which hairstyles or beard shapes complement their facial structure, hair texture, density, or professional lifestyle.
-2. **Communication Gap with Barbers:** Users struggle to describe desired cuts to barbers or stylists, often leaving salons dissatisfied.
-3. **Lack of Ongoing Maintenance Guidance:** Choosing a style is only the first step; users rarely receive practical, daily routines for styling products, trim cadences, and upkeep tools tailored to their specific hair and beard types.
-4. **Privacy Hesitancy:** Users are sensitive about sharing facial imagery with digital platforms, requiring explicit transparency regarding how photos are processed, stored, and deleted.
+1. **The "Full Closet, Nothing to Wear" Paradox:** Users struggle to visualize viable combinations from their existing clothes, leading to decision fatigue each morning.
+2. **Context Misalignment (Weather & Occasion):** People frequently pick outfits that are inappropriate for the day's temperature, rain, or workplace/social dress code.
+3. **Repetitive Outfit Habits:** Without tracking what they wore recently, users default to the same 2–3 "safe" combinations, leaving the rest of their wardrobe unworn.
+4. **Uncertainty in Wardrobe Additions:** When shopping, users do not know which single item would unlock the most new combinations with items they already own.
+5. **AI Hallucination & Privacy Hesitancy:** Users reject styling tools that recommend clothes they don't own or that compromise the privacy of personal clothing imagery.
 
-### 2.2 Target Audience (Provisional Hypothesis)
-- **Primary Segment Hypothesis:** Men aged 18–35, initially focused on urban Indian users.
-  - *Status:* **Hypothesis to Validate** (not an established market fact).
-  - *Context:* High mobile penetration, rapid adoption of digital personal care services, and diverse variations in hair texture, facial hair growth patterns, and styling habits.
-  - *Validation Metric:* Sign-up completion rate and recommendation completion among target cohort during initial beta testing.
-- **Secondary / Future Segments:** Broad global demographics and women's styling consultations (deferred to post-MVP).
+### 2.2 Target Audience
+- **Primary Segment:** Working professionals, university students, and style-conscious individuals (ages 20–40) who want to look sharp and intentional with minimal daily effort.
+- **Key Characteristics:** Own a moderate-to-large wardrobe (20–100+ items); experience daily morning routine friction; value practical, explainable advice over high-fashion avant-garde trends.
+- **Secondary / Future Segments:** Capsule wardrobe enthusiasts, travelers planning trip packings, and users seeking unified grooming (hair, beard, clothes) consultations.
 
 ---
 
@@ -38,79 +39,78 @@ Personal grooming directly influences self-confidence and professional presence,
 
 ### 3.1 Jobs to Be Done Framework
 - **Core Functional Job:**  
-  *When* I want to refresh my haircut or trim my beard,  
-  *I want to* receive personalized style recommendations with concrete barber instructions and maintenance steps based on my face and preferences,  
-  *So that* I look well-groomed without wasting time or risking a bad haircut.
+  *When* I need to dress for the day or a specific event,  
+  *I want to* receive complete outfit recommendations built exclusively from clothes I already own that suit the weather and dress code,  
+  *So that* I look well-put-together without wasting time, stressing, or defaulting to the same outfit repeatedly.
 - **Emotional Job:**  
-  *I want to feel* confident and assured in my appearance without feeling judged or self-conscious about my features.
-- **Privacy Job:**  
-  *I want to know* that my facial photos are strictly used for grooming analysis, stored privately, and can be permanently deleted whenever I choose.
+  *I want to feel* confident, organized, and effortlessly stylish in my day-to-day life without feeling pressured to purchase more fast fashion.
+- **Privacy & Trust Job:**  
+  *I want to know* that my clothing photos are stored privately, that AI recommendations never hallucinate items I do not own, and that I can purge my data whenever I choose.
 
-### 3.2 Target User Personas (Illustrative Archetypes)
+### 3.2 Target User Personas
 
-#### Persona A: "The Style Explorer" (e.g., College Student / Early Professional, Age 22)
-- **Profile:** Wants a modern, stylish look for interviews and social life; open to experimentation.
-- **Pain Point:** Has had inconsistent haircuts; doesn't know how to specify fades, lengths, or beard lines.
-- **Goal:** Get 2–3 modern recommendations that suit his face shape, with reference details he can show his barber.
+#### Persona A: "The Busy Professional" (e.g., Software Consultant, Age 28)
+- **Profile:** Works in a hybrid environment (office days require smart casual; remote days require elevated loungewear).
+- **Pain Point:** Has dozens of shirts and pants but wears the same dark jeans and navy polo every week. Hesitates on pairing shoes and outerwear when it rains or gets cold.
+- **Goal:** Open app, select "Office / Smart Casual", check today's weather, and get an immediate 1-tap outfit recommendation with an explanation of why the colors and pieces work.
 
-#### Persona B: "The Low-Maintenance Professional" (e.g., Software Engineer, Age 29)
-- **Profile:** Values efficiency; spends minimal time styling hair in the morning.
-- **Pain Point:** Frustrated by high-maintenance haircuts that look messy without extensive blow-drying or pomade.
-- **Goal:** Needs practical, low-effort cuts and a simple beard trim schedule that looks clean with 5 minutes of daily effort.
+#### Persona B: "The Thoughtful Dresser" (e.g., Marketing Lead, Age 24)
+- **Profile:** Enjoys personal style and curating clothes, but struggles with outfit repetition across social outings and work meetings.
+- **Pain Point:** Can't remember if he wore a specific blazer/trouser combination to the same client meeting last week.
+- **Goal:** Track outfit wear history, explore fresh combinations of existing items, and see versatile pieces that revitalize underutilized clothes.
 
 ---
 
 ## 4. Value Proposition & Differentiation Hypotheses
 
 ### 4.1 Value Proposition
-Groom.ai provides an objective, private, and contextual grooming advisor in your pocket. Unlike static style galleries, Groom.ai matches recommendations to user-declared constraints (styling effort, workplace environment, hair texture) combined with computer-assisted visual assessment.
+Groom.ai delivers a private, objective personal stylist in your pocket that works with your **existing closet**. Unlike fashion e-commerce apps that push buying more, Groom.ai maximizes the utility and versatility of clothes you already own.
 
 ### 4.2 Differentiation Hypotheses
-| Area | Traditional Alternatives | Groom.ai Hypothesis | Validation Approach |
+| Dimension | Traditional Alternatives | Groom.ai Hypothesis | Validation Metric |
 | :--- | :--- | :--- | :--- |
-| **Consultation** | Generic Google/Pinterest image search; variable barber advice | Structured, explainable AI recommendation based on photo + personal preferences | Track user rating on recommendation suitability (CSAT) |
-| **Barber Handoff** | Showing random celebrity photos that don't match hair type | Providing structured "Barber Notes" (clipper guard numbers, taper style, scissor work) | Measure percentage of users who save or share the barber card |
-| **Maintenance** | Uninformed trial-and-error with commercial hair products | Personalized daily/weekly grooming checklist with tool and product categories | Measure 7-day retention on Grooming Plan views |
-| **Data Privacy** | Opaque data collection by social filters | Ephemeral or user-controlled storage with one-click data purge and outbox retry | Monitor privacy consent opt-in rates and deletion requests |
+| **Catalog Scope** | Shopping apps recommend catalog inventory to purchase | Recommendations strictly restricted to user's verified owned items (Zero Hallucination) | User rating on recommendation feasibility (target ≥ 4.2/5) |
+| **Recommendation Engine** | Generic mood boards or unconstrained generative LLM output | Hybrid pipeline: deterministic rules guarantee category completeness and color harmony; AI supplies styling rationale | Outfit acceptance rate (% recommended outfits selected/worn) |
+| **Context Awareness** | Static styling quizzes ignorant of daily reality | Real-time weather brackets and occasion presets guide outfit filtering | Daily recommendation generation frequency |
+| **Wear History** | No memory of previous outfits | Automatic wear logging and repetition penalty across 3–7 day windows | Reduction in repeat outfit complaints in user feedback |
+| **Data Privacy** | Opaque data sharing with advertising networks | Dual decoupled consent, private object storage, and transactional account outbox erasure | Consent opt-in rate (> 75%) and deletion verification |
 
 ---
 
 ## 5. Scope Definition: MVP vs. Post-MVP
 
-To guarantee rapid validation, technical excellence, and reliable execution, the MVP scope is strictly bounded.
+### 5.1 MVP Scope (Phase 1 Implemented; Phase 2 & 3 Next)
+1. **User Accounts & Authentication (Phase 1 — Implemented & Verified):**
+   - Secure registration, email/password login, JWT access tokens with rotating refresh tokens, logout, and token revocation.
+2. **User Profile & Styling Preferences (Phase 2):**
+   - Profile management (display name, style persona).
+   - Style preferences: primary aesthetic, preferred fit, favorite colors, avoided colors, default formality.
+   - Dual decoupled privacy consent: independent flags for wardrobe cloud storage and external AI processing. Deterministic outfit scoring remains available without AI consent; AI-generated rationale is optional and consent-gated.
+3. **Digital Wardrobe Management (Phase 2):**
+   - Fast item ingestion via camera or gallery with on-device JPEG normalization (max 10MB).
+   - Direct-to-storage upload via pre-signed S3 URLs (with local filesystem fallback for offline dev/test).
+   - Lightweight item schema: `name`, `category` (TOP, BOTTOM, FOOTWEAR, OUTERWEAR, ACCESSORY), `primaryColor`, `formalityLevel`, `pattern`, `subcategory`, `secondaryColor`, `season`.
+   - Wardrobe catalog browsing, filtering by category/formality, editing, and deleting items (with durable outbox cleanup).
+4. **Deterministic Outfit Engine & AI Styling Rationale (Phase 3):**
+   - Deterministic rule engine verifying category completeness: Top + Bottom + Footwear (+ Outerwear if cold/rainy; + Accessories).
+   - Context input: Weather (temperature bracket + condition) and Occasion (Casual to Corporate Formal).
+   - Color harmony matrix validation (monochrome, complementary, neutrals).
+   - Multimodal AI styling rationale: explains why the outfit works, layering/tucking tips, and why alternative candidates were ranked lower.
+   - Strict guardrail: AI never recommends items not present in the user's active wardrobe.
+5. **Outfit History & Wear Logging (Phase 4):**
+   - Log outfit as worn today.
+   - Wear history tracking to penalize recently worn items in subsequent recommendations.
+6. **Privacy & Data Control:**
+   - Permanent one-click account deletion cascading through all user data and enqueuing all storage keys to the durable deletion outbox.
 
-### 5.1 MVP Scope (Included)
-1. **User Onboarding & Profile:**
-   - Account registration, authenticated sessions with rotating refresh tokens, and logout.
-   - User profile setup: age bracket, hair type (straight, wavy, curly, coily), hair density/thickness, facial hair pattern (full, patchy, stubble, clean-shaven preference).
-   - Practical preferences: daily styling time commitment, workplace dress code/formality.
-2. **Camera & Gallery Photo Ingestion:**
-   - On-device camera capture with framing guide (front-facing, well-lit).
-   - Gallery selection fallback.
-   - Explicit consent modal explaining data handling prior to photo upload.
-3. **AI-Assisted Style Recommendations:**
-   - Multi-modal recommendation engine evaluating the photo alongside declared preferences.
-   - 2 to 3 curated hairstyle options and 1 to 2 beard style options per analysis.
-   - Explicit rationale (why this style suits the user's features and hair texture).
-   - Confidence caveat: acknowledges AI advisory nature; avoids pseudoscientific certainty.
-4. **Actionable Maintenance & Barber Guidance:**
-   - Structured styling instructions for the user (recommended daily products, blow-drying/brushing advice).
-   - Practical "Barber Card" (key terminology, guard lengths, taper instructions).
-5. **Saved Recommendations & Personalized Grooming Plan:**
-   - Ability to bookmark preferred styles.
-   - Simple personalized Grooming Plan containing saved styles, daily maintenance checklist, and trim reminder schedule.
-6. **User Profile Management & Complete Data Deletion:**
-   - View/update profile attributes and preferences.
-   - One-click account and data deletion (purging database profile, photo records, and private object storage assets via transactional outbox).
-
-### 5.2 Explicitly Excluded Features (Post-MVP Roadmap)
-The following capabilities are out of scope for the initial MVP:
-- **Virtual Hairstyle Try-On / Generative Face Warping:** Generative diffusion models for synthetic hair rendering introduce high latency, heavy compute cost, and uncanny-valley distortion.
-- **Skincare Diagnostics / Acne Detection:** Groom.ai is strictly a grooming styling tool, not a medical or dermatological diagnostic application.
-- **Outfit / Fashion Recommendations:** Avoid premature scope creep beyond hair and beard grooming.
-- **Product Marketplace / Direct E-Commerce / Affiliate Links:** Monetization and e-commerce integrations will be evaluated only after core recommendation utility is validated.
-- **Push Notifications & Automated Background Reminders:** Complex background task scheduling on mobile is deferred to post-MVP.
-- **Paid Subscriptions / Paywalls:** MVP will be free to invited beta cohorts to measure engagement and quality without paywall friction.
+### 5.2 Post-MVP Roadmap (Future Evolution)
+- **Phase 5: Smart Wardrobe Gap Analysis & Generative Try-On:**
+  - Gap analysis identifying high-leverage versatile items to buy that maximize new combinations with existing clothes.
+  - Generative visual try-on rendering realistic images of the user wearing specific outfit combinations.
+- **Phase 6+: Grooming Expansion:**
+  - Hairstyle and beard styling consultations using portrait photos.
+  - Barber Cards with technical clipper guard numbers, taper styles, and scissor texturing advice.
+  - Daily grooming maintenance checklists and trim interval schedules.
 
 ---
 
@@ -118,23 +118,22 @@ The following capabilities are out of scope for the initial MVP:
 
 ```mermaid
 journey
-    title Core User Journey: First Recommendation & Grooming Plan
-    section Onboarding
+    title Core User Journey: Digital Wardrobe & Daily Styling
+    section Onboarding & Setup
       Install app & create account: 5: User
-      Complete hair & styling preferences: 4: User
-    section Photo Ingestion
-      Review photo privacy consent: 4: User
-      Capture front-facing photo or choose from gallery: 4: User
-    section Recommendation Generation
-      Submit recommendation request (HTTP 202): 5: User
-      View processing animation & wait for AI analysis: 3: User
-    section Review & Planning
-      Inspect 2-3 hairstyle & beard recommendations: 5: User
-      Review rationale and Barber Card: 5: User
-      Save favorite style to Grooming Plan: 5: User
-    section Ongoing Upkeep & Control
-      Review daily maintenance routine in Grooming Plan: 4: User
-      Delete photo (history preserved) or delete account: 5: User
+      Complete style preferences & grant storage consent: 4: User
+    section Wardrobe Ingestion
+      Capture or upload clothing photos: 4: User
+      Assign category, primary color & formality: 4: User
+      Review digital wardrobe catalog: 5: User
+    section Daily Outfit Recommendation
+      Select occasion & view local weather: 5: User
+      Grant AI styling consent (first time): 4: User
+      Receive 2-3 complete outfit options with styling rationale: 5: User
+    section Wear Logging & Upkeep
+      Mark outfit as "Worn Today": 5: User
+      View wear history & item usage frequency: 4: User
+      Edit or delete wardrobe item (storage deletion queued): 5: User
 ```
 
 ---
@@ -143,143 +142,122 @@ journey
 
 | Requirement ID | Module | Title | Description | Priority |
 | :--- | :--- | :--- | :--- | :--- |
-| **FR-001** | Auth | User Registration | System shall allow new users to register via email and secure password. | P0 |
-| **FR-002** | Auth | User Login & Session | System shall authenticate users and issue secure short-lived tokens with refresh support. | P0 |
-| **FR-003** | Auth | User Logout & Token Revocation | System shall allow authenticated users to terminate their session, revoking the active refresh token. | P0 |
-| **FR-004** | Auth | Password Reset Workflow | System shall allow users to request a password reset link sent to their registered email address. | P1 |
-| **FR-005** | Profile | Profile Management | System shall store and retrieve user profile attributes (display name, age group). | P0 |
-| **FR-006** | Preferences | Grooming Preferences Questionnaire | System shall record hair type, hair density, beard growth pattern, daily styling commitment, and workplace setting. | P0 |
-| **FR-007** | Photo | Explicit Photo Privacy Consent | System shall present a mandatory consent disclosure before first photo capture/upload, recording consent timestamp. | P0 |
-| **FR-008** | Photo | In-App Camera Capture | Mobile client shall enable in-app photo capture using device camera with an alignment overlay. | P0 |
-| **FR-009** | Photo | Photo Gallery Selection | Mobile client shall allow selecting an existing portrait from device photo gallery. | P0 |
-| **FR-010** | Photo | Client-Side Pre-validation & Normalization | Mobile client shall validate image file size (max 10MB) and format. HEIC images must be transcoded to JPEG on-device before upload. Backend rejects `image/heic` with `UNSUPPORTED_IMAGE_FORMAT` (server-side HEIC transcoding is a pending implementation choice, not available for MVP). | P0 |
-| **FR-011** | Photo | Pre-Signed Upload URL Generation | Backend shall generate short-lived, pre-signed upload URLs for private object storage, verifying asset ownership upon upload confirmation. | P0 |
-| **FR-012** | Photo | Upload Confirmation & Activation | Backend shall verify uploaded image MIME type, magic bytes, dimensions, and size before activating photo asset. | P0 |
-| **FR-013** | Photo | Photo Asset Deletion | Users shall be able to delete any uploaded photo; backend purges storage asset while historical recommendation text is preserved with photo reference set to null. | P0 |
-| **FR-014** | AI Analysis | Asynchronous Recommendation Job Creation | Backend shall accept recommendation job requests (HTTP 202 Accepted) combining user photo and profile preferences into a structured JSON schema. | P0 |
-| **FR-015** | AI Analysis | Job Status & Polling Retrieval | System shall allow mobile client to poll status of active jobs until completed or failed. | P0 |
-| **FR-016** | AI Analysis | Multimodal Prompt Orchestration & AI Invocation | Backend shall orchestrate multi-modal AI prompt evaluation combining user photo and profile preferences. | P0 |
-| **FR-017** | AI Analysis | Server-Side AI Output Validation | Backend shall strictly validate AI provider JSON response against schema; retry or gracefully fail on malformed outputs. | P0 |
-| **FR-018** | AI Analysis | Structured Hairstyle & Beard Recommendations | System shall return 2–3 distinct hairstyle recommendations and 1–2 beard recommendations per analysis job. | P0 |
-| **FR-019** | AI Analysis | Barber Instructions Card | Each recommendation must provide structured barber instructions (clipper lengths, taper types, scissor instructions). | P0 |
-| **FR-020** | AI Analysis | Maintenance & Product Advice | Each recommendation must provide daily styling instructions, recommended generic product categories, and trim interval. | P0 |
-| **FR-021** | History | Recommendation History Listing | Users shall be able to view their previous recommendation jobs and generated reports. | P0 |
-| **FR-022** | Plan | Bookmark / Save Recommendation Option | Users shall be able to save/bookmark any generated recommendation option. | P0 |
-| **FR-023** | Plan | Active Grooming Plan View | System shall display an active Grooming Plan featuring saved styles and maintenance checklist. | P0 |
-| **FR-024** | Plan | Interactive Maintenance Checklist | Users shall be able to check off or toggle routine maintenance items in their active plan. | P1 |
-| **FR-025** | Privacy | Complete Account Deletion | Users shall be able to trigger permanent account deletion: synchronous database cascade (HTTP 204) with asynchronous verified cloud object eradication via outbox retry. | P0 |
-| **FR-026** | Privacy | User Data Export | Users shall be able to download/view a structured JSON archive of their profile and recommendations. | P1 |
-| **FR-027** | System | Health & Diagnostic Ping | Backend shall expose a public health check endpoint reflecting service and database health. | P0 |
+| **FR-AUTH-001** | Auth | User Registration | System shall allow new users to register via email and password with BCrypt (strength 12) hashing. | P0 (Implemented) |
+| **FR-AUTH-002** | Auth | User Login & JWT Session | System shall authenticate users and issue 15-minute JWTs and 30-day rotating refresh tokens. | P0 (Implemented) |
+| **FR-AUTH-003** | Auth | User Logout & Revocation | System shall revoke active refresh token on logout and purge mobile SecureStore. | P0 (Implemented) |
+| **FR-AUTH-004** | Auth | Password Reset Workflow | System shall support forgot-password email requests and secure password reset with token invalidation. | P1 |
+| **FR-PROF-005** | Profile | Profile Management | System shall store and retrieve user profile attributes (display name, style persona). | P0 |
+| **FR-PROF-006** | Profile | Style Preferences | System shall record primary style, preferred fit, favorite colors, avoided colors, and default formality. | P0 |
+| **FR-PRIV-007** | Privacy | Dual Decoupled Consent | System shall maintain distinct, unbundled consents for wardrobe photo storage (`wardrobe_storage_consent_granted`) and AI styling analysis (`ai_styling_consent_granted`). | P0 |
+| **FR-WARD-008** | Wardrobe | Photo Capture & Normalization | Mobile client shall capture or select wardrobe item photos, transcode to JPEG via `expo-image-manipulator` (max 10MB), and reject HEIC on backend. | P0 |
+| **FR-WARD-009** | Wardrobe | Upload Intent Handshake | Backend shall verify storage consent and generate upload intent (S3 pre-signed PUT URL in cloud or direct local stream endpoint for dev). | P0 |
+| **FR-WARD-010** | Wardrobe | Lightweight Item Model | System shall record item: `name`, `category` (TOP, BOTTOM, FOOTWEAR, OUTERWEAR, ACCESSORY), `primaryColor`, `formalityLevel`, `pattern`, `subcategory`, `secondaryColor`, `season`. | P0 |
+| **FR-WARD-011** | Wardrobe | Catalog Browsing & Filter | Users shall be able to browse wardrobe items with filters by category, formality, season, and color. | P0 |
+| **FR-WARD-012** | Wardrobe | Item Edit & Deletion | Users shall be able to update item details or delete an item; deletion enqueues its storage key into `storage_deletion_outbox`. | P0 |
+| **FR-OUTFIT-013** | Outfit | Deterministic Outfit Generator | System shall evaluate user's wardrobe to generate valid outfits satisfying completeness (1 Top + 1 Bottom + 1 Footwear [+ Outerwear/Accessory]), formality, weather, and color harmony. | P0 |
+| **FR-OUTFIT-014** | Outfit | AI Styling Rationale | Backend shall invoke multimodal AI with candidate outfit items to generate natural-language styling advice ("Why this works", tuck/layering tips); strictly zero hallucination of unowned items. | P0 |
+| **FR-OUTFIT-015** | Outfit | Weather & Occasion Input | Users shall specify occasion (`CASUAL`, `SMART_CASUAL`, `BUSINESS_CASUAL`, `CORPORATE_FORMAL`, `DATE_NIGHT`, etc.) and weather conditions to guide recommendations. | P0 |
+| **FR-WEAR-016** | History | Wear Logging | Users shall be able to log an outfit as worn on a specific date. | P0 |
+| **FR-WEAR-017** | History | Repetition Prevention | Outfit recommendation engine shall apply a scoring penalty to items worn within the past 3–7 days. | P0 |
+| **FR-PRIV-018** | Privacy | Complete Account Deletion | System shall permanently erase user account via database cascade (HTTP 204) and enqueue all photo/wardrobe keys into durable outbox for eradication. | P0 |
+| **FR-SYS-019** | System | Health & Diagnostic Ping | Backend shall expose a public health check endpoint reflecting database and service health. | P0 (Implemented) |
 
 ---
 
 ## 8. User Stories & Acceptance Criteria
 
-### US-001: User Registration and Onboarding
-- **As a** new user,  
-- **I want to** create an account and specify my hair texture, beard growth, and styling preferences,  
-- **So that** Groom.ai can tailor recommendations to my personal grooming reality.
+### US-001: User Style Profile Setup
+- **As a** registered user,  
+- **I want to** declare my styling preferences, favorite colors, and typical dress code,  
+- **So that** Groom.ai can tailor outfit suggestions to my personal taste.
 - **Acceptance Criteria (Gherkin):**
   ```gherkin
-  Scenario: Successful onboarding flow
-    Given I am an unauthenticated user on the mobile app
-    When I submit a valid email, strong password, and display name
-    Then my account is created and an authenticated session is established
-    And I am directed to the Grooming Preferences questionnaire
-    When I select hair type "wavy", hair density "medium", beard pattern "stubble", and styling effort "5-10 mins"
-    Then my preferences are persisted in my profile
-    And I navigate to the home dashboard ready for photo analysis
+  Scenario: Setting style preferences
+    Given I am an authenticated user on the mobile app
+    When I navigate to Style Profile
+    And I select aesthetic "Smart Casual", fit "Regular", and favorite colors ["NAVY", "WHITE", "OLIVE"]
+    Then my preferences are saved to the backend
+    And future outfit recommendations reflect these style parameters
   ```
 
-### US-002: Photo Upload with Explicit Consent
-- **As a** privacy-conscious user,  
-- **I want to** understand how my photo will be used and choose whether to take a new photo or select from my gallery,  
-- **So that** I feel safe and remain in control of my personal biometric data.
+### US-002: Wardrobe Item Ingestion & Storage Consent
+- **As a** user building my digital closet,  
+- **I want to** take a photo of a clothing item and tag its category and color with minimal effort,  
+- **So that** it becomes part of my digital wardrobe.
 - **Acceptance Criteria (Gherkin):**
   ```gherkin
-  Scenario: First-time photo consent prompt
-    Given I have not previously granted photo processing consent
-    When I tap "Analyze My Face"
-    Then a modal appears detailing private storage, AI analysis purpose, and deletion rights
-    When I decline consent
-    Then photo capture does not launch and I return to dashboard
-    When I accept consent
-    Then my consent timestamp is recorded on the backend
-    And I am offered choices: "Take Photo" or "Choose from Gallery"
+  Scenario: Adding a new wardrobe item
+    Given I have granted wardrobe storage consent
+    When I capture a photo of a white linen button-down shirt
+    And the mobile app normalizes the photo to JPEG under 10MB
+    And I submit name "White Linen Shirt", category "TOP", and primary color "WHITE"
+    Then the photo is uploaded directly to private storage via pre-signed URL
+    And the item is stored with status "ACTIVE" and appears in my Tops catalog
   ```
 
-### US-003: AI Recommendation Job Execution & Retrieval
-- **As a** user who uploaded a photo,  
-- **I want to** receive structured hairstyle and beard recommendations with clear rationale,  
-- **So that** I know exactly what styles suit my face and why.
+### US-003: Daily Outfit Recommendation with AI Rationale
+- **As a** user deciding what to wear,  
+- **I want to** select my occasion and today's weather and receive complete outfits made from my own clothes,  
+- **So that** I look great and understand why the outfit works.
 - **Acceptance Criteria (Gherkin):**
   ```gherkin
-  Scenario: Asynchronous recommendation generation
-    Given I have confirmed an uploaded portrait photo
-    When I initiate a recommendation job
-    Then a job record with status "PENDING" is created and HTTP 202 Accepted is returned
-    And the mobile app displays an engaging progress indicator
-    When the backend finishes AI processing within the provisional 15-second target window
-    Then the job status transitions to "COMPLETED"
-    And the app displays 2-3 hairstyle recommendations and 1-2 beard recommendations
-    And each recommendation displays: style name, rationale, barber card, and maintenance routine
-    When upstream AI processing exceeds 30 seconds
-    Then the backend transitions the job to "FAILED" with error code AI_INFERENCE_TIMEOUT
-    And the user is prompted to retry without quota deduction
+  Scenario: Receiving outfit recommendations
+    Given I have at least 1 Top, 1 Bottom, and 1 pair of Shoes in my wardrobe
+    And I have granted AI styling consent
+    When I request recommendations for occasion "Business Casual" and weather "Mild / Sunny"
+    Then the backend deterministic engine filters and scores valid combinations from my owned items
+    And the multimodal AI generates a styling rationale explaining color harmony and layering tips
+    And the app displays 2–3 complete outfits containing only items I own
+    And zero unowned or hallucinated items are recommended
   ```
 
-### US-004: Barber Card & Maintenance Routine
-- **As a** user at the barbershop,  
-- **I want to** display a concise "Barber Card" with exact technical cut instructions,  
-- **So that** the barber executes the cut accurately without miscommunication.
+### US-004: Outfit Wear Logging & Repetition Prevention
+- **As a** user who wore a recommended outfit,  
+- **I want to** log it as worn today,  
+- **So that** the app avoids suggesting the exact same combination tomorrow or later this week.
 - **Acceptance Criteria (Gherkin):**
   ```gherkin
-  Scenario: Viewing and referencing the Barber Card
-    Given I am viewing an accepted recommendation
-    When I tap "Barber Instructions"
-    Then I see a high-contrast card showing clipper guard numbers, scissor texturing notes, and neckline style
-    And I can bookmark this recommendation to my Grooming Plan
+  Scenario: Logging an outfit and avoiding repetition
+    Given I selected and wore "Outfit Option 1"
+    When I tap "Mark as Worn Today"
+    Then the outfit wear event is recorded with today's date
+    When I request recommendations tomorrow for the same occasion
+    Then the items worn today receive a repetition penalty and alternative combinations are prioritized
   ```
 
 ### US-005: Account & Data Deletion
-- **As a** user who wishes to leave the service,  
-- **I want to** permanently delete my account and all associated photos,  
-- **So that** no residual personal information remains on Groom.ai servers.
+- **As a** privacy-conscious user,  
+- **I want to** permanently delete my account and all uploaded wardrobe photos,  
+- **So that** no personal data remains on Groom.ai servers.
 - **Acceptance Criteria (Gherkin):**
   ```gherkin
-  Scenario: Complete account deletion
-    Given I am an authenticated user with uploaded photos and past recommendations
-    When I navigate to Profile Settings and confirm "Delete Account and All Data"
-    Then within a single atomic database transaction:
-      the backend cancels any in-flight recommendation jobs
-      and enqueues cloud storage keys into storage_deletion_outbox without retaining user PII
-      and deletes the users row cascading across all 11 dependent tables
-    And on transaction commit returns HTTP 204 No Content (provisional target: < 500ms until measured)
-    And invalidates my active access tokens immediately (HTTP 401 on subsequent requests)
-    And dispatches cloud storage deletion asynchronously after commit (Attempt 1)
-    And if an attempt fails, the durable outbox retries up to four additional times on a schedule whose delays total 24 hours, with operator alerting after five failed attempts
-    And unverified deletion tasks remain in the outbox until confirmed — they are never purged automatically
-    And I am redirected to the login screen
+  Scenario: Complete account erasure
+    Given I am an authenticated user with wardrobe items and wear logs
+    When I confirm account deletion in Settings
+    Then within a single database transaction:
+      all photo and wardrobe storage keys are enqueued into storage_deletion_outbox
+      and the user record is deleted cascading across all dependent tables
+    And HTTP 204 No Content is returned immediately
+    And existing JWT access tokens are invalidated immediately
+    And the storage outbox asynchronously eradicates all cloud binaries with retries
   ```
 
 ---
 
 ## 9. Non-Functional Requirements (NFR)
 
-| ID | Category | Requirement | Validation Method / Provisional Target |
+| ID | Category | Requirement | Validation Method |
 | :--- | :--- | :--- | :--- |
-| **NFR-001** | Performance | **API Latency:** Non-AI standard REST endpoints must respond within 300ms at the 95th percentile under normal load. | *Provisional Target:* Validate via automated integration benchmarks. |
-| **NFR-002** | Performance | **AI Recommendation Latency (Provisional):** Async recommendation jobs target completion within **≤ 15 seconds** at the 90th percentile under normal provider conditions. **Measurement Boundary:** Measured strictly from backend job record insertion (`created_at`) to completion persistence (`completed_at`). Dominant factor is upstream provider latency. Handled with explicit 30s backend socket read timeout (marks job `FAILED` with `AI_INFERENCE_TIMEOUT`, no quota deduction) and 30s mobile client polling timeout with retry prompt. | *Provisional Target:* Monitored via backend job metrics; client timeout at 30s. |
-| **NFR-003** | Security | **Transport Security:** All communication between mobile and backend, and backend and AI/Storage, must use TLS 1.3 (or 1.2+ minimum). | Automated SSL/TLS configuration checks. |
-| **NFR-004** | Security | **Authorization Enforcement:** Server-side authorization must enforce strict object ownership checks on every user asset, photo, and job ID. | Insecure Direct Object Reference (IDOR) integration tests. |
-| **NFR-005** | Security | **Secret Management:** Zero hardcoded API keys or credentials in client bundles or git repositories. Backend keys injected via environment configuration. | Pre-commit git secret scanners and CI linting. |
-| **NFR-006** | Privacy | **Object Storage Privacy:** User photos stored in non-public object storage buckets. Accessible only via ephemeral pre-signed URLs (max 15-minute validity). | Bucket permission automated audit. |
-| **NFR-007** | Privacy | **No PII in Logs:** Logs must never record raw user facial photos, presigned tokens, passwords, or PII. | Structured JSON logger sanitization rules. |
-| **NFR-008** | Reliability | **Graceful Degradation:** If upstream AI provider encounters rate limits or downtime, system returns explicit retryable error messages without crashing. | Chaos / mock fault injection unit tests. |
-| **NFR-009** | Reliability | **Database Consistency:** Database schema governed exclusively by versioned Flyway migrations; zero untracked DDL scripts. | Automated CI migration validation against fresh database container. |
-| **NFR-010** | Mobile UX | **Offline / Network Resilience:** Mobile client displays clean offline banners and retry buttons on network dropouts. | Network cutoff manual & automated UI testing. |
-| **NFR-011** | Mobile UX | **Accessibility:** Core UI elements must adhere to WCAG 2.1 AA contrast ratios and support screen readers (TalkBack / VoiceOver). | Expo accessibility audits. |
-| **NFR-012** | Scalability | **Stateless Backend:** Spring Boot backend must remain stateless; session state maintained via signed JWT tokens with hybrid invalidation checks. | Multi-instance deployment sanity test. |
+| **NFR-001** | Performance | **API Latency:** Non-AI standard REST endpoints must respond within 300ms at the 95th percentile under normal load. | Automated integration benchmarks. |
+| **NFR-002** | Performance | **Deterministic Outfit Generation Latency:** Stage 1 rule-based candidate filtering in Java must execute in < 100ms for wardrobes up to 500 items. | JUnit performance microbenchmarks. |
+| **NFR-003** | Performance | **AI Styling Latency:** Multimodal AI styling rationale targets completion within ≤ 15 seconds at 90th percentile; enforced by a 30s socket timeout. | Backend metrics and WireMock tests. |
+| **NFR-004** | Security | **Tenancy Isolation:** Every database query mutating or reading wardrobe items, preferences, or outfits must enforce `user_id == authenticatedUserId`. | IDOR integration tests. |
+| **NFR-005** | Security | **Zero Secrets in Code:** Credentials, JWT secrets, and storage keys read strictly from environment variables. | Pre-commit git secret scanners and CI linting. |
+| **NFR-006** | Privacy | **Private Storage:** Wardrobe photos stored in private buckets with short-lived pre-signed URLs (TTL ≤ 15 min). | Bucket permission automated audit. |
+| **NFR-007** | Privacy | **No PII in Logs:** Binary streams, presigned URLs, passwords, and raw JWTs must never be logged. | Logback sanitization filter. |
+| **NFR-008** | Reliability | **Database Consistency:** Schema changes managed exclusively via immutable Flyway SQL migrations. `ddl-auto` set to `validate`. | CI migration testcontainer check. |
+| **NFR-009** | Reliability | **Local Dev Storage Resilience:** Local filesystem storage adapter (`LocalStorageService`) allows developers to test image upload/viewing offline on emulators and physical devices without cloud keys. | Local integration tests. |
+| **NFR-010** | Mobile UX | **Offline / Network Resilience:** Mobile client displays clean offline banners and optimistic caching for wardrobe browsing. | Network cutoff manual & automated UI testing. |
 
 ---
 
@@ -287,52 +265,50 @@ journey
 
 ```mermaid
 graph LR
-    A[Registration] --> B[Preference Completion]
-    B --> C[Photo Upload & Consent]
-    C --> D[Recommendation Delivered]
-    D --> E[Save to Plan]
-    D --> F[User Rating / CSAT]
+    A[Registration] --> B[Wardrobe Cataloging (≥ 3 items)]
+    B --> C[Outfit Generation Requested]
+    C --> D[Outfit Selected & Worn]
+    D --> E[Daily / Weekly Active Styling]
 ```
 
-1. **Activation Rate:**  
-   - *Definition:* Percentage of newly registered users who complete preferences and submit their first photo.  
-   - *Target Benchmark:* > 60% completion during initial beta.
-2. **Recommendation Completion Rate:**  
-   - *Definition:* Percentage of initiated recommendation jobs that successfully produce structured outputs without timeout or error.  
-   - *Target Benchmark:* > 95% technical completion rate.
-3. **Recommendation Utility (CSAT / Actionability):**  
-   - *Definition:* In-app 1-to-5 star rating and quick feedback ("Did this style help you?") displayed after viewing recommendations.  
-   - *Target Benchmark:* Average rating ≥ 4.0 / 5.0.
-4. **Plan Engagement:**  
-   - *Definition:* Percentage of users who save at least 1 recommended style to their Grooming Plan.  
-   - *Target Benchmark:* > 40% of users who receive a recommendation.
+1. **Cataloging Activation Rate:**  
+   - *Definition:* Percentage of newly registered users who add at least 3 wardrobe items (1 Top, 1 Bottom, 1 Footwear) within 48 hours.  
+   - *Target Benchmark:* > 55% during private beta.
+2. **Recommendation Acceptance Rate:**  
+   - *Definition:* Percentage of outfit recommendation sessions where the user selects and marks an outfit as worn.  
+   - *Target Benchmark:* > 35% of generated sessions.
+3. **Styling Utility & Feasibility CSAT:**  
+   - *Definition:* In-app rating ("Did these recommendations fit your day?") displayed after outfit generation.  
+   - *Target Benchmark:* Average rating ≥ 4.2 / 5.0.
+4. **Repeat Outfit Reduction:**  
+   - *Definition:* Percentage of users reporting greater wardrobe variety after 14 days of use.  
+   - *Target Benchmark:* > 60% positive survey response.
 5. **Data Deletion Reliability:**  
-   - *Definition:* Account deletion commits relational erasure atomically and returns HTTP 204; cloud-object deletion is tracked by a durable outbox until success is verified or an operator resolves an alerted failure. The system measures the percentage of deletion tasks with verified outcomes and the age/count of unresolved tasks; it does not assume every cloud deletion succeeds automatically.
+   - *Definition:* 100% of account deletions commit relational erasure immediately and schedule outbox eradication tasks with zero untracked orphaned files.
 
 ---
 
 ## 11. Assumptions, Risks & Mitigations
 
-| Category | Description | Impact | Proposed Mitigation |
+| Category | Description | Impact | Mitigation |
 | :--- | :--- | :--- | :--- |
-| **Risk** | Upstream AI Provider Latency / Outages | High | Asynchronous job model with client polling; clear loading states; bounded retries with exponential backoff. |
-| **Risk** | AI Hallucination / Unrealistic Advice | Medium | Strict JSON schema enforcement via backend validation; prompt engineering discouraging unfeasible hairstyles for detected hair types. |
-| **Risk** | Photo Privacy Sensitivity | High | Explicit consent screen before capture; private storage; short-lived pre-signed URLs; one-click account deletion with a durable outbox, retries, and operator alerting for unresolved storage deletion. |
-| **Assumption** | Mobile camera capture provides adequate lighting and resolution for AI feature analysis. | Medium | Provide on-screen camera guide (oval face guide, lighting advice) to encourage clear front-facing portraits. |
-| **Assumption** | Users will find text + diagrammatic barber instructions valuable even without generative image try-on. | High | Test via MVP feedback: measure if users actually show the "Barber Card" to stylists. |
+| **Risk** | Onboarding friction from photographing clothes | High | Keep item form ultra-lightweight (photo + name + category + color); allow bulk gallery upload in fast-follow; defaults for formality/pattern. |
+| **Risk** | AI hallucinating clothes user doesn't own | Critical | Architectural guardrail: Stage 1 deterministic engine generates candidates strictly from owned items; AI only provides styling rationale on pre-filtered set. |
+| **Risk** | Cold-start problem (wardrobe incomplete) | Medium | App provides clear guidance on minimum required items (1 Top, 1 Bottom, 1 Footwear) and celebratory progress bar as wardrobe grows. |
+| **Risk** | Cloud storage credentials in local development | Medium | Built-in `LocalStorageService` adapter allows full local file storage under `./data/storage` for physical devices/emulators without AWS keys. |
+| **Assumption** | Users will find rule-based + AI explained outfits more trustworthy than pure black-box LLM suggestions. | High | Validate via MVP CSAT feedback comparing deterministic accuracy vs user satisfaction. |
 
 ---
 
-## 12. Proposed Post-MVP Roadmap (Future Evolution)
+## 12. Phased Roadmap Alignment
 
-- **Phase 2 (Post-MVP):**
-  - Push notification reminders for scheduled haircut and beard maintenance intervals.
-  - Skincare basic routine advisor (cleanser, moisturizer, SPF based on skin type questionnaire).
-  - Social sharing card ("My Grooming Blueprint") with privacy-safe redactions.
-- **Phase 3:**
-  - Virtual 2D/3D Hairstyle Try-On evaluation (once generative models reach acceptable cost, latency, and photo-realistic quality).
-  - Curated product discovery and partner affiliate links for recommended styling clays, pomades, and trimmers.
-  - Barber discovery directory and direct appointment booking integrations.
+- **Phase 0 (Completed):** Foundation & Baseline Scaffolding (Java 21, Spring Boot 3, Expo, PostgreSQL 16, CI).
+- **Phase 1 (Completed):** Vertical Slice & JWT Authentication (Registration, login, refresh, logout, `/me`, physical device verified).
+- **Phase 2 (Current Focus):** Digital Wardrobe Management (Wardrobe CRUD, categories, private storage, lightweight item model, dual consent).
+- **Phase 3:** Deterministic Outfit Engine & AI Styling Rationale (Occasion, weather, color harmony, explainable AI, zero hallucination).
+- **Phase 4:** Outfit History & Wear Tracking (Log wear, repetition penalty, wardrobe usage metrics).
+- **Phase 5:** Smart Wardrobe Gap Analysis & Generative Try-On.
+- **Phase 6+:** Grooming Consultations Expansion (Hairstyles, Beard Styles & Barber Cards).
 
 ---
 
@@ -340,9 +316,9 @@ graph LR
 
 | Topic | Category | Current Status | Notes |
 | :--- | :--- | :--- | :--- |
-| **Target Audience** | Hypothesis | Provisional: Men (18-35), India-first | Requires validation during first beta cohort. |
-| **Tech Stack (Mobile & Backend)** | Approved Fact | Accepted Baseline | React Native (Expo) + Spring Boot (Java 21) + PostgreSQL. |
-| **Recommendation Flow** | Architectural Decision | Accepted Baseline | Asynchronous job creation (HTTP 202) + polling (prevents mobile HTTP timeout). |
-| **AI Provider Selection** | Open Decision | Proposed — Pending Founder Evaluation | Evaluating OpenAI GPT-4o vs Google Gemini 1.5 Pro/Flash vs Anthropic Claude 3.5 Sonnet on cost, latency, privacy policies, and image understanding. Model names, costs, and terms require current verification. |
-| **Auth Provider Mechanism** | Open Decision | Proposed — Recommended Baseline | Self-hosted Spring Security JWT recommended for MVP; pending founder decision on whether social logins are mandatory for beta. |
-| **Object Storage Provider** | Open Decision | Proposed — Pending Infrastructure Selection | AWS S3, Cloudflare R2, or Google Cloud Storage via S3-compatible client SDK. |
+| **Core Product Direction** | Approved Pivot | Wardrobe-First AI Stylist | Approved baseline; grooming expansion deferred to Phase 6+. |
+| **Tech Stack** | Approved Fact | Java 21, Spring Boot 3, Expo SDK, PostgreSQL 16 | Phase 0 & 1 verified in CI and on physical devices. |
+| **Dual Consent Model** | Approved Architectural Decision | Two unbundled consent flags in `user_profiles` | `wardrobe_storage_consent_granted` and `ai_styling_consent_granted`. |
+| **Storage Architecture** | Approved Architectural Decision | S3 for production, `LocalStorageService` for dev | Ephemeral pre-signed URLs, client JPEG normalization, outbox deletion. |
+| **Recommendation Engine** | Approved Architectural Decision | Two-stage hybrid: Deterministic grammar + AI explainer | Guarantees zero item hallucination; sub-100ms rule evaluation. |
+| **Weather Integration** | Baseline Decision | Client-declared brackets for MVP | Temperature brackets (`HOT`, `WARM`, `MILD`, `COOL`, `COLD`) + conditions, with optional free Open-Meteo fallback. |
