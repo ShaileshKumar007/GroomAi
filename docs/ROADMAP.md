@@ -1,7 +1,7 @@
 # Groom.ai — Implementation Roadmap & Phased Execution Plan
 
-**Document Version:** 1.1.0  
-**Status:** Draft — Proposed Roadmap (Pending Stakeholder Approval)  
+**Document Version:** 2.0.0  
+**Status:** Approved Roadmap (Wardrobe-First Evolution)  
 **Approach:** Phased, Milestones-Driven Delivery with Early Vertical Slice  
 **Last Updated:** October 2026  
 
@@ -13,13 +13,14 @@ The project is structured into sequential phases to validate technical feasibili
 
 ```mermaid
 graph TD
-    Phase0["Phase 0: Project Setup & Baseline Scaffolding\n(Maven, Spring Boot 3, Expo, Flyway, CI)"]
-    Phase1["Phase 1: Vertical Slice & Authentication\n(Mobile connects to Backend, JWT Auth, Health Ping, Postgres)"]
-    Phase2["Phase 2: Profile, Preferences & Photo Pipeline\n(Questionnaire, Camera/Gallery, Pre-signed S3 Upload)"]
-    Phase3["Phase 3: AI Recommendation Engine\n(Multimodal prompt, Async Job Polling HTTP 202, Barber Cards)"]
-    Phase4["Phase 4: Saved Recommendations & Grooming Plan\n(Bookmarks, Active Plan, Routine Checklist)"]
-    Phase5["Phase 5: Privacy, Deletion, Password Reset & Hardening\n(Account Cascade, Storage Outbox, Pwd Reset, Rate limits)"]
-    Phase6["Phase 6: Cloud Deployment & Beta Release\n(PaaS Deploy, Managed Postgres, Beta Cohort)"]
+    Phase0["Phase 0: Project Setup & Baseline Scaffolding\n(Maven, Spring Boot 3, Expo, Flyway, CI)\n[COMPLETED]"]
+    Phase1["Phase 1: Foundation & Authentication\n(Mobile connects to Backend, JWT Auth, Health Ping, Postgres)\n[COMPLETED]"]
+    Phase2["Phase 2: Digital Wardrobe Management\n(Wardrobe CRUD, Private Storage S3/Local, Lightweight Item Model, Dual Consent)\n[NEXT MILESTONE]"]
+    Phase3["Phase 3: Deterministic Outfit Engine & AI Styling Rationale\n(Completeness rules, Formality, Weather, Color Harmony, Explainable AI)"]
+    Phase4["Phase 4: Outfit History & Wear Tracking\n(Wear Logging, Repetition Penalty, Usage Insights)"]
+    Phase5["Phase 5: Privacy, Deletion, Password Reset & Hardening\n(Account Cascade, Storage Outbox, Pwd Reset, Rate Limits)"]
+    Phase6["Phase 6: Cloud Deployment & Beta Release\n(PaaS Deploy, Managed Postgres, S3, Beta Cohort)"]
+    Phase7["Phase 7+: Gap Analysis, Generative Try-On & Grooming Expansion\n(Versatile additions, Virtual Try-On, Hairstyles & Beard Consulting)"]
 
     Phase0 --> Phase1
     Phase1 --> Phase2
@@ -27,151 +28,145 @@ graph TD
     Phase3 --> Phase4
     Phase4 --> Phase5
     Phase5 --> Phase6
+    Phase6 --> Phase7
 ```
 
 ---
 
 ## 2. Detailed Milestone Specifications
 
+> **Status hygiene:** “Implemented”, “CI passed”, and “verified on a physical device” are separate claims. Only mark a task/device flow verified when the corresponding test evidence exists. The CI run IDs and commit ranges below are historical notes and must be reconciled against GitHub/repository history before being treated as canonical.
+
+
 ### Phase 0: Project Setup & Baseline Scaffolding
-- **Objective:** Establish the development environments, tooling, and baseline project structures for both the backend and mobile repositories.
-- **Key Tasks:**
-  - Initialize Spring Boot 3.x project with Java 21 LTS, Maven, and core dependencies (Spring Web, Spring Security, Spring Data JPA, Flyway, Lombok, Jakarta Validation).
-  - Configure PostgreSQL database connectivity with HikariCP and create baseline `V1__initial_schema.sql` migration containing all tables defined in `docs/DATA_MODEL.md` (including `password_reset_tokens` and `storage_deletion_outbox`).
-  - Initialize React Native mobile application using Expo, TypeScript (strict mode), and Expo Router.
-  - Set up GitHub Actions CI workflow to run backend tests and mobile TypeScript checks on pull requests.
-- **Definition of Done (DoD):**
-  - Backend compiles via `mvn clean verify` with zero warnings or errors.
-  - Flyway migration executes successfully against a fresh PostgreSQL testcontainer.
-  - Mobile application boots cleanly in Expo Go / simulator with zero TypeScript errors.
+- **Status:** Completed (commit `c108364`, PR #1 merge `ed3a244`). **CI run ID requires reconciliation:** this document previously listed `#38618698144`, while earlier project notes listed `#38615049255`.
+- **Delivered Capabilities:**
+  - Initialized Spring Boot 3.3.5 project with Java 21 LTS, Maven, and Flyway.
+  - Initialized React Native Expo mobile app with Expo Router and strict TypeScript.
+  - Flyway migration `V1__initial_schema.sql` applied and tested against real PostgreSQL 16 Testcontainers.
+  - Multi-job CI pipeline verifying Java compilation, tests, TypeScript strictness, and Expo Doctor.
 
 ---
 
 ### Phase 1: Foundation & The First Vertical Slice
-- **Objective:** Prove end-to-end connectivity between the mobile app, backend API, and database through a functional vertical slice.
-- **Vertical Slice Scope:**
-  - Public health check ping: `GET /api/v1/health` rendered on mobile splash/onboarding screen.
+- **Status:** **Implementation/CI reported complete; manual device E2E not confirmed** (commits listed here: `388a42c` through `57a200f`; CI run `#38627268448`; reconcile commit IDs against repository history before relying on this line)
+- **Delivered Capabilities:**
+  - Public health check ping: `GET /api/v1/health` rendered on mobile onboarding screen.
   - User Registration and Login screens in the mobile app.
   - Backend `auth` module endpoints: `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`, and `GET /api/v1/auth/me`.
   - Secure token persistence on the mobile client using `Expo SecureStore`.
-  - Centralized Axios/Fetch client with automatic `Authorization: Bearer` token injection and 401 refresh interception.
-- **Security Checkpoint:** Verify password hashing uses Argon2id or BCrypt (cost factor ≥ 12); verify JWT expiration claims.
-- **Definition of Done (DoD):**
-  - A user can register on the mobile client, store their JWT session in SecureStore, terminate the app, reopen it, and fetch their user details from `GET /api/v1/auth/me`.
-  - 100% unit and integration tests passing for the `auth` module using Testcontainers.
+  - Centralized Axios client with automatic Bearer injection and 401 refresh interception.
+  - CI verification reported for backend/mobile tests and PostgreSQL integration tests; BCrypt (strength 12) password hashing and rotating refresh tokens are part of the Phase 1 implementation.
+  - **Manual physical-iPhone end-to-end verification: NOT YET CONFIRMED by the available evidence.** Record device, app/API configuration, tested flows, and result here only after a fresh successful run.
 
 ---
 
-### Phase 2: User Profile, Preferences & Photo Pipeline
-- **Objective:** Implement user onboarding preferences and the secure direct object storage photo upload pipeline.
+### Phase 2: Digital Wardrobe Management (Next Milestone)
+- **Objective:** Implement user style preferences, dual decoupled privacy consents, and the digital wardrobe catalog with private object storage.
 - **Key Tasks:**
-  - Build onboarding screens in mobile: Hair Type, Hair Density, Beard Pattern, Styling Effort, and Workplace Environment.
-  - Implement backend `user` module endpoints: `GET/PUT /api/v1/profile` and `GET/PUT /api/v1/preferences`.
-  - Create explicit Photo Privacy Consent modal in mobile, persisting consent via `PUT /api/v1/profile/consent`.
-  - Implement mobile camera capture (with oval alignment guide) and photo gallery selection using Expo Camera and ImagePicker.
-  - Implement client-side pre-validation and image normalization: transcode non-standard formats (e.g., iOS HEIC) to JPEG using `expo-image-manipulator` prior to requesting upload intent; enforce file size ≤ 10MB.
-  - Implement backend `photo` module: pre-signed URL generation (`POST /api/v1/photos/upload-intent`, rejecting `image/heic` with `UNSUPPORTED_IMAGE_FORMAT`), and confirmation verification (`POST /api/v1/photos/{id}/confirm`).
-  - Implement direct S3 upload from mobile and backend object verification (`HeadObject`).
-  - Implement `DELETE /api/v1/photos/{id}` verifying asset ownership, atomically enqueuing storage key to outbox and deleting the `photo_assets` row, ensuring historical recommendations decouple via `ON DELETE SET NULL`.
-- **Security & Privacy Checkpoint:** Verify photos are uploaded to private bucket with zero public access. Verify pre-signed URL TTL is ≤ 15 minutes.
+  - Author and apply Flyway migration `V2__wardrobe_schema.sql`:
+    - Add `wardrobe_items` table.
+    - Add `style_preferences` table.
+    - Alter `user_profiles` to add `wardrobe_storage_consent_granted`, `wardrobe_storage_consent_granted_at`, `ai_styling_consent_granted`, `ai_styling_consent_granted_at`.
+  - Implement backend `user` module endpoints:
+    - `GET /api/v1/profile` (updated with dual consent status).
+    - `PUT /api/v1/profile` (update display name, age bracket).
+    - `PUT /api/v1/profile/consents` (update decoupled wardrobe storage and AI styling consents).
+    - `GET/PUT /api/v1/profile/style-preferences` (style aesthetic, preferred fit, favorite/avoided colors, default formality).
+  - Implement `ObjectStorageService` abstraction in `com.groomai.storage`:
+    - `S3StorageService`: AWS S3 private bucket implementation generating pre-signed upload/download URLs (TTL ≤ 15 min; `uploadMode: "S3_PRESIGNED"`).
+    - `LocalStorageService`: Local filesystem adapter (`./data/storage`) providing direct multipart upload endpoint (`POST /api/v1/storage/upload/{storageKey}`; `uploadMode: "LOCAL_STREAM"`) and authenticated download stream (`GET /api/v1/storage/files/{storageKey}`) enabling offline development and testing on physical devices/emulators without AWS keys.
+  - Implement backend `wardrobe` module:
+    - `POST /api/v1/wardrobe/upload-intent`: Verifies `wardrobe_storage_consent_granted == true`; returns upload intent response with `uploadMode`, `storageKey`, and `uploadUrl`; rejects `image/heic` with HTTP `400 Bad Request` (`UNSUPPORTED_IMAGE_FORMAT`).
+    - `POST /api/v1/wardrobe/items`: Verifies uploaded object in storage (magic bytes `FF D8 FF`, size ≤ 10MB, min dimensions 200x200), catalogs item with required fields (`name`, `category`, `primaryColor`, `storageKey`) and defaults for optional fields (`formalityLevel`, `pattern`, `subcategory`, `secondaryColor`, `season`).
+    - `GET /api/v1/wardrobe/items`: Paginated listing with filtering by category, formality, season, color. Returns fresh pre-signed or authenticated download URLs.
+    - `GET /api/v1/wardrobe/items/{id}`: Single item detail view.
+    - `PUT /api/v1/wardrobe/items/{id}`: Edit item metadata.
+    - `DELETE /api/v1/wardrobe/items/{id}`: Verifies ownership, enqueues storage key to `storage_deletion_outbox` in same transaction, deletes database row.
+  - Build Mobile UI features:
+    - Style profile setup screen.
+    - Wardrobe storage consent modal.
+    - Wardrobe Catalog Dashboard with category tabs (Tops, Bottoms, Footwear, Outerwear, Accessories).
+    - Add Wardrobe Item screen: Camera capture / gallery picker, client-side JPEG normalization via `expo-image-manipulator` (≤ 10MB), metadata tagging form.
+    - Item detail and edit/delete screens.
+- **Security & Privacy Checkpoint:**
+  - Verify wardrobe photos are stored in private storage with no public access.
+  - Verify upload intent generation strictly requires `wardrobe_storage_consent_granted == true`.
+  - Verify tenancy isolation: user A cannot view, edit, or delete user B's wardrobe items.
 - **Definition of Done (DoD):**
-  - User can complete preferences, grant consent, capture a portrait photo, transcode to JPEG on-device, upload directly to S3 via pre-signed URL, and receive an `ACTIVE` status confirmation.
-  - Backend verifies asset existence, rejects corrupted or unconfirmed uploads, and rejects `image/heic` content-type.
+  - Authenticated user can complete style preferences, grant storage consent, upload clothing photos, and view their organized digital wardrobe on a physical iPhone.
+  - 100% unit and integration tests passing for wardrobe module using Testcontainers PostgreSQL.
 
 ---
 
-### Phase 3: AI Recommendation Engine & Job Orchestration
-- **Objective:** Build the core AI recommendation engine with asynchronous job polling, multi-modal prompt construction, structured output enforcement, and Barber Cards.
+### Phase 3: Deterministic Outfit Engine & AI Styling Rationale
+- **Objective:** Build the two-stage hybrid outfit recommendation engine combining sub-100ms deterministic candidate generation with multimodal AI styling rationale.
 - **Key Tasks:**
-  - Implement hosted multimodal AI client abstraction in `com.groomai.recommendation` (supporting model adapter pattern).
-  - Validate candidate AI provider image format compatibility (verifying native JPEG format support).
-  - Implement asynchronous job execution via Spring `@Async` task executor:
-    - `POST /api/v1/recommendations/jobs` (enqueues job with status `PENDING`, returns **HTTP 202 Accepted**).
-    - Asynchronous worker retrieves short-lived photo URL, formats prompt with user preferences, and invokes AI provider.
-  - Implement strict JSON schema validation for model output using Jakarta Validation.
-  - On valid output, persist `recommendations` and `recommendation_options` records, transitioning job to `COMPLETED`.
-  - Build mobile polling hook (`useRecommendationJob`) polling `GET /api/v1/recommendations/jobs/{jobId}` every 2.5 seconds (up to 12 attempts / 30s) with visual progress indicator.
-  - Build Recommendation Result screen on mobile:
-    - 2–3 Hairstyle options with suitability score and styling rationale.
-    - 1–2 Beard options.
-    - High-contrast "Barber Card" with exact technical cut instructions (guards, scissor work, taper).
-    - Maintenance routine card (daily minutes, product categories, trim cadence).
-- **Reliability & Security Checkpoint:**
-  - WireMock integration tests verifying behavior on AI timeouts (30s) and HTTP 429 rate limit responses.
-  - Validate that prompt disclaims medical diagnoses and face shape infallibility.
+  - Implement Stage 1 Deterministic Combinations Engine in `com.groomai.outfit`:
+    - Category completeness rules: exactly 1 Top + 1 Bottom + 1 Footwear (+ optional Outerwear if weather is cold/rainy; + optional Accessories).
+    - Occasion & formality alignment (`CASUAL`, `SMART_CASUAL`, `BUSINESS_CASUAL`, `CORPORATE_FORMAL`, `DATE_NIGHT`, etc.).
+    - Weather compatibility rules: temperature brackets (`HOT`, `WARM`, `MILD`, `COOL`, `COLD`) and conditions (`SUNNY`, `RAINY`, `WINDY`, `SNOWY`).
+    - Color harmony matrix: monochromatic, complementary, neutral bases.
+    - Candidate ranking & top 2–3 selection.
+  - Implement Stage 2 Multimodal AI Styling Adapter:
+    - Passes pre-validated candidate items and styling prompt to external AI provider.
+    - Generates natural-language rationale: why the combination works, tucking/layering advice, shoe pairing tips.
+    - **Strict Guardrail:** AI is strictly constrained to the candidate set; it never hallucinates or recommends unowned clothes.
+    - Enforces 30-second socket timeout with graceful fallback and user quota preservation.
+  - Implement endpoint: `POST /api/v1/outfits/generate` (requires minimum 1 Top, 1 Bottom, 1 Footwear). AI styling consent is required only before invoking the hosted AI provider; without it, return deterministic candidates without AI-generated rationale.
+  - Build Mobile UI:
+    - Daily outfit recommendation generator screen with occasion selector and weather input.
+    - Recommendation result cards rendering complete outfits with item photos, suitability score, and AI styling explanation.
 - **Definition of Done (DoD):**
-  - End-to-end recommendation generation meets the provisional latency target of < 15 seconds (measured strictly from backend job creation `created_at` to persistence `completed_at`, excluding mobile upload and render times) under standard upstream provider conditions.
-  - Upstream AI provider calls exceeding 30-second read timeout transition cleanly to `FAILED` with error code `AI_INFERENCE_TIMEOUT`, preserving user quota.
-  - Malformed AI outputs handled gracefully with retry without crashing or corrupting data.
+  - Recommendation generation executes reliably with zero unowned item hallucinations.
+  - WireMock integration tests verify behavior on AI timeouts and rate limits.
 
 ---
 
-### Phase 4: Saved Recommendations & Personalized Grooming Plan
-- **Objective:** Enable users to bookmark preferred styles and maintain an active daily/weekly grooming plan.
+### Phase 4: Outfit History & Wear Tracking
+- **Objective:** Enable users to log worn outfits and prevent repetitive recommendations.
 - **Key Tasks:**
-  - Implement backend `plan` module:
-    - `POST /api/v1/saved-recommendations` (bookmark style option).
-    - `GET /api/v1/saved-recommendations` (list saved options).
-    - `DELETE /api/v1/saved-recommendations/{id}`.
-    - `GET /api/v1/grooming-plan` and `PUT /api/v1/grooming-plan`.
-    - `PATCH /api/v1/grooming-plan/items/{itemId}` (toggle checklist items).
-  - Build mobile Saved Styles screen and Grooming Plan dashboard.
-  - Display active haircut and beard style alongside daily routine checklist.
+  - Implement wear logging endpoint: `POST /api/v1/outfits/{id}/wear`.
+  - Implement `GET /api/v1/outfits/wear-history`.
+  - Integrate repetition penalty into Stage 1 deterministic engine: penalizes items worn within the past 3–7 days to prioritize fresh combinations.
+  - Build Mobile UI:
+    - "Mark as Worn Today" action on outfit cards.
+    - Outfit wear history timeline / calendar view.
+    - Basic wardrobe utilization insights (most worn / least worn pieces).
 - **Definition of Done (DoD):**
-  - User can bookmark any recommended hairstyle or beard style.
-  - Grooming plan reflects active selections and maintains checklist state across sessions.
+  - Logging an outfit as worn immediately penalizes its items in subsequent recommendation requests for 7 days.
 
 ---
 
 ### Phase 5: Privacy, Deletion, Password Reset & Security Hardening
-- **Objective:** Enforce relational data erasure, durable cloud-deletion tracking and recovery, password recovery workflows, IDOR penetration defenses, rate limiting, and observability.
+- **Objective:** Enforce complete relational erasure, durable cloud storage outbox retries, password recovery, rate limiting, and observability.
 - **Key Tasks:**
-  - Implement password reset workflows:
-    - `POST /api/v1/auth/forgot-password` (rate-limited, email enumeration proof).
-    - `POST /api/v1/auth/reset-password` (token validation, password update, refresh token invalidation, `tokens_invalid_before` update).
-  - Implement backend `DELETE /api/v1/users/account` cascade:
-    - Within a single `@Transactional` block: cancel active in-flight recommendation jobs; extract and enqueue cloud storage object keys into `storage_deletion_outbox` (`status = 'PENDING'`, `attempts = 0`, no `user_id`); execute `DELETE FROM users WHERE id = :userId` cascading across all 11 dependent tables.
-    - On transaction commit return HTTP `204 No Content` (provisional target: < 500ms until measured under production load). Use the same target in the Definition of Done.
-    - Insert outbox rows with `next_attempt_at = NOW()`; dispatch deletion asynchronously post-commit and use a one-minute sweeper as recovery. Atomically claim work with a two-minute lease; recover expired leases. Retry after 15 minutes, 1 hour, 6 hours, and 16 hours 45 minutes (24 hours total across four retries); emit `STORAGE_DELETION_DEAD_LETTER` after five failed claimed attempts.
-    - Unverified deletion tasks remain in `storage_deletion_outbox` until confirmed — **never purged automatically**.
-    - Verify that subsequent requests with old access tokens fail immediately (`401 Unauthorized`).
-  - Implement backend `POST /api/v1/users/export` returning structured personal data archive.
-  - Implement rate limiting filter using Bucket4j on auth endpoints (10 req/min; 5 req/hour on forgot-password) and AI job dispatches (5 jobs/hour).
-  - Conduct thorough IDOR penetration test suite: verify that user A cannot access or mutate user B's photos, jobs, recommendations, or plans.
-  - Configure production Logback structured JSON logging with MDC `traceId` correlation and ensure zero photo URLs or PII are logged.
-- **Security Checkpoint:** Complete OWASP Top 10 checklist verification for API endpoints.
+  - Implement password reset workflows: `POST /api/v1/auth/forgot-password` and `POST /api/v1/auth/reset-password`.
+  - Implement atomic account deletion cascade: `DELETE /api/v1/users/account`.
+    - Single `@Transactional` database transaction: enqueues all wardrobe and photo storage keys into `storage_deletion_outbox` (`status = 'PENDING'`, `attempts = 0`); deletes user row cascading across all dependent tables; returns HTTP 204 immediately (< 500ms provisional target).
+  - Implement `StorageOutboxSweeper` background worker & retry dispatcher (the table schema is already applied in `V1__initial_schema.sql`):
+    - Post-commit dispatcher and one-minute sweeper (`@Scheduled(cron = "0 * * * * *")`) atomically claim due tasks, transitioning them to `PROCESSING` with a 2-minute lease.
+    - Bounded exponential retries across 24 hours (15m, 1h, 6h, 16h45m). Tasks transition to `FAILED` with dead-letter alert on Attempt 5 and are never automatically purged until deletion is confirmed.
+  - Implement rate limiting filter using Bucket4j on auth and styling endpoints.
+  - Conduct IDOR penetration test suite across all wardrobe and outfit endpoints.
 - **Definition of Done (DoD):**
-  - Account deletion atomically purges relational records in a single transaction and returns HTTP `204 No Content` (provisional target: < 500ms until measured). Cloud-object deletion is tracked by the outbox; unverified tasks persist until deletion is verified or an operator resolves the task.
-  - Password recovery workflow functions cleanly end-to-end.
-  - IDOR regression tests pass with 100% coverage across all user endpoints.
+  - Account deletion atomically purges all database records and guarantees durable outbox cleanup of storage assets.
+  - Zero IDOR vulnerabilities across all user endpoints.
 
 ---
 
 ### Phase 6: Cloud Deployment & Closed Beta Release
-- **Objective:** Deploy production-ready backend and database infrastructure, distribute mobile beta builds, and measure MVP metrics.
+- **Objective:** Deploy production infrastructure, distribute mobile builds, and onboard initial beta cohort.
 - **Key Tasks:**
-  - Containerize Spring Boot backend with multi-stage Dockerfile based on Eclipse Temurin 21 JRE.
-  - Deploy backend container to managed cloud PaaS (e.g., Render, Railway, AWS App Runner).
-  - Provision managed PostgreSQL database with automated daily backups.
-  - Configure production cloud object storage (AWS S3 or Cloudflare R2) with private ACLs and CORS policies.
-  - Configure production DNS and TLS certificates (TLS 1.3).
-  - Build and distribute mobile application via Expo Application Services (EAS) to TestFlight (iOS) and Google Play Internal Testing (Android).
-  - Onboard initial beta cohort of users.
-- **Definition of Done (DoD):**
-  - Public health endpoint `GET /api/v1/health` returns `200 OK`.
-  - Real beta users successfully complete registration, photo upload, and recommendation generation without manual intervention.
+  - Containerize Spring Boot application with Dockerfile (Eclipse Temurin 21 JRE).
+  - Deploy to managed cloud PaaS (e.g., Render, Railway, AWS App Runner) with managed PostgreSQL 16.
+  - Configure production AWS S3 private storage and CORS policies.
+  - Distribute mobile application via Expo Application Services (EAS) to TestFlight (iOS) and Google Play Internal Testing (Android).
+  - Onboard initial beta cohort and monitor wardrobe activation and recommendation CSAT.
 
 ---
 
-## 3. Beta-Readiness Quality Criteria
-
-Before opening Groom.ai to external beta testers, the system must meet all of the following gates:
-
-| Quality Gate | Threshold / Requirement | Verification |
-| :--- | :--- | :--- |
-| **Test Suite** | 100% unit and integration tests passing; ≥ 80% line coverage on domain logic | CI pipeline |
-| **Security Audit** | Zero high/critical vulnerabilities in Maven dependencies; zero secrets in git | GitHub Dependabot & TruffleHog |
-| **Privacy Compliance**| Explicit consent collected before upload; 1-click account and photo deletion verified with outbox retry | Manual & automated deletion tests |
-| **Error Handling** | No raw 500 stack traces leaked to client; all errors follow standard schema | API fuzzing tests |
-| **AI Reliability** | Minimum 95% recommendation completion rate under test conditions | Telemetry dashboards |
-| **Accessibility** | Mobile app meets WCAG 2.1 AA color contrast and supports font scaling | Accessibility inspection |
+### Phase 7+: Gap Analysis, Generative Try-On & Grooming Expansion (Post-MVP)
+- **Smart Wardrobe Gap Analysis:** Algorithms identifying versatile missing items that maximize new outfit combinations with existing clothes.
+- **Generative Virtual Try-On:** Realistic visual rendering of the user wearing specific outfit combinations.
+- **Grooming Consultations Expansion:** Hairstyle and beard styling consultations using portrait photos, Barber Cards with technical cut instructions, and daily maintenance routines.

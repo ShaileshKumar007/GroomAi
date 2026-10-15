@@ -8,12 +8,12 @@
 
 ## 1. Product Context & Architectural Baseline
 
-- **Product Vision:** Groom.ai is an AI-powered personal grooming assistant helping users make confident, personalized grooming choices (hairstyles, beard styles, barber instructions, maintenance routines).
+- **Product Vision:** Groom.ai is an AI-powered personal stylist helping users make confident, personalized outfit choices using clothes they already own (digital wardrobe cataloging, deterministic outfit generation, multimodal styling rationale, wear tracking, and wardrobe gap analysis, with future expansion into hairstyles and beard grooming).
 - **Architecture Baseline:**
   - **Backend:** Modular Monolith built with **Java 21 LTS** and **Spring Boot 3.x**, managed by **Maven**, backed by **PostgreSQL 16** with **Flyway** migrations.
   - **Mobile:** Cross-platform mobile app built with **React Native**, **Expo**, **Expo Router**, and **TypeScript** with strict type checking.
-  - **Storage:** Private cloud object storage (S3-compatible) with pre-signed upload URLs and short-lived read access.
-  - **AI Integration:** Hosted multimodal AI provider accessed via a clean backend abstraction layer with server-side JSON schema validation.
+  - **Storage:** Vendor-neutral `ObjectStorageService` supporting private cloud object storage (S3-compatible) with pre-signed URLs in production/staging and local filesystem storage (`./data/storage`) for offline local development and physical device testing.
+  - **AI Integration:** Hybrid styling engine: deterministic backend rules generate and score valid combinations from user-owned items before hosted multimodal AI is invoked for natural-language styling rationale. The AI never invents unowned items.
 - **Architectural Guardrail:** Do **NOT** introduce Redis, Apache Kafka, RabbitMQ, Kubernetes, vector databases, microservices, or a separate Python microservice unless an explicit Architecture Decision Record (ADR) in `docs/DECISIONS.md` has been accepted and approved by the project lead.
 
 ---
@@ -37,21 +37,24 @@ GroomAI/
 │       ├── main/
 │       │   ├── java/com/groomai/
 │       │   │   ├── auth/           # Registration, login, password reset, JWT token handling
-│       │   │   ├── user/           # Profiles and grooming preferences
-│       │   │   ├── photo/          # Presigned URLs, upload verification, S3 adapter, outbox sweeper
-│       │   │   ├── recommendation/ # AI orchestrator, prompts, schema validator, async jobs
-│       │   │   ├── plan/           # Saved recommendations, active grooming plan
+│       │   │   ├── user/           # Profiles, dual consent, style preferences
+│       │   │   ├── wardrobe/       # Wardrobe items, upload intents, categories, validation
+│       │   │   ├── outfit/         # Deterministic candidate generation, color harmony, AI rationale, wear history
+│       │   │   ├── storage/        # S3 adapter, local filesystem storage adapter, outbox sweeper
+│       │   │   ├── photo/          # Dormant V1 portrait assets & upload verification (for future grooming)
+│       │   │   ├── recommendation/ # Dormant V1 grooming AI recommendations
+│       │   │   ├── plan/           # Dormant V1 grooming plan
 │       │   │   └── common/         # Global exceptions, error response, base DTOs
 │       │   └── resources/
 │       │       ├── application.yml
-│       │       └── db/migration/   # V1__initial_schema.sql (Flyway migrations)
+│       │       └── db/migration/   # V1__initial_schema.sql, V2__wardrobe_schema.sql (Flyway migrations)
 │       └── test/                   # JUnit 5, Mockito, Testcontainers tests
 └── mobile/                     # React Native Expo Application
     ├── app/                    # Expo Router file-based navigation
     ├── src/
     │   ├── api/                # Centralized Axios/Fetch client & typed endpoints
     │   ├── components/         # Reusable design system UI components
-    │   ├── features/           # Feature slices (auth, camera, recommendations, plan)
+    │   ├── features/           # Feature slices (auth, wardrobe, outfits, profile, style-quiz)
     │   ├── hooks/              # Custom React hooks
     │   ├── types/              # Strict TypeScript definitions & API models
     │   └── utils/              # Client-side validation, formatting, storage
@@ -91,27 +94,30 @@ GroomAI/
 3. **No Biometric Data in Logs:**
    - Raw image binary streams, presigned URLs, and base64 strings must **never** be logged.
    - User passwords and raw JWT tokens must be masked in log statements.
-4. **Photo Privacy Consent Enforcement:** Upload-intent generation and recommendation processing must verify that the user has granted explicit photo consent (`photo_consent_granted == true`).
+4. **Dual Decoupled Consent Enforcement:**
+   - Upload-intent generation for wardrobe photos requires explicit wardrobe storage consent (`wardrobe_storage_consent_granted == true`).
+   - Deterministic outfit candidate generation may use stored wardrobe metadata without AI styling consent. Explicit AI styling consent (`ai_styling_consent_granted == true`) is mandatory before any wardrobe metadata or imagery is sent to a hosted AI provider; if consent is absent, skip the AI call and return deterministic candidates without AI-written rationale.
+   - Legacy `photo_consent_granted` is preserved in the schema for portrait photos but must **never** be repurposed or bundled.
 5. **Private Storage & Short-Lived Access:**
-   - Uploads must target private storage buckets.
+   - Uploads must target private storage buckets (or isolated local dev storage).
    - Presigned download URLs must have an expiration TTL of ≤ 15 minutes.
 6. **Data Deletion Completeness & Cloud Outbox Sweeper:**
-   - Account deletion (`DELETE /api/v1/users/account`) executes within a **single `@Transactional` database transaction**: cancel in-flight jobs; insert each photo storage key into `storage_deletion_outbox` (`status = 'PENDING'`, `attempts = 0`, `next_attempt_at = NOW()`); execute `DELETE FROM users WHERE id = :userId`, cascading across all 11 dependent tables. On commit, return HTTP `204 No Content` (provisional target: < 500ms until measured).
+   - Account deletion (`DELETE /api/v1/users/account`) executes within a **single `@Transactional` database transaction**: cancel in-flight jobs; insert all photo and wardrobe storage keys into `storage_deletion_outbox` (`status = 'PENDING'`, `attempts = 0`, `next_attempt_at = NOW()`); execute `DELETE FROM users WHERE id = :userId`, cascading across all dependent user tables (including `wardrobe_items`, `style_preferences`, `photo_assets`, etc.). On commit, return HTTP `204 No Content` (provisional target: < 500ms until measured).
    - Cloud storage keys are enqueued into `storage_deletion_outbox` as part of that transaction. To minimize PII and decouple retries from user existence, `storage_deletion_outbox` has **no** `user_id` and **no** foreign keys.
    - Immediately after commit, a dispatcher attempts deletion. The outbox row is durable before dispatch, so the sweeper can recover if the callback or worker never runs. The dispatcher and sweeper must atomically claim work to avoid concurrent processing. Use a one-minute sweeper and retry delays measured from the preceding claimed attempt: 15 minutes, 1 hour, 6 hours, then 16 hours 45 minutes (24 hours total across four retries). After five failed attempts, transition to `FAILED` and emit `STORAGE_DELETION_DEAD_LETTER`.
    - **Deletion Reliability Rule:** Unverified deletion tasks are **NEVER automatically purged**. `FAILED` outbox rows persist until cloud deletion is positively confirmed by an operator. Operational log retention is separate from durable outbox task records. A successful provider response or verified object non-existence is required before removing a task.
-7. **Foreign Key Decoupling for Photo Deletion:**
-   - Foreign keys from `recommendation_jobs` and `recommendations` referencing `photo_assets` must use `ON DELETE SET NULL`. Deleting a photo purges the image binary while preserving historical recommendation text.
+7. **Foreign Key Decoupling for Photo & Item Deletion:**
+   - Foreign keys from recommendation jobs referencing photo assets must use `ON DELETE SET NULL`. Deleting a photo or wardrobe item queues the image binary for asynchronous deletion via the outbox while preserving historical recommendation text.
 8. **Stateless JWT Invalidation Rules:**
    - Account deletion immediately invalidates access tokens because the user row no longer exists in `users`.
    - Password resets and security revokes update `users.tokens_invalid_before = NOW()`, causing the JWT filter to reject any access token whose `iat` precedes that timestamp.
 9. **Image Normalization & Format Rejection:**
-   - Mobile client must transcode iOS HEIC photos to JPEG using `expo-image-manipulator` before requesting an upload intent. Client-side JPEG normalization is the only supported format path for MVP.
-   - The backend `POST /api/v1/photos/upload-intent` endpoint **rejects** `contentType: "image/heic"` with HTTP `400 Bad Request` (code `UNSUPPORTED_IMAGE_FORMAT`). Server-side HEIC transcoding via Java ImageIO / TwelveMonkeys is **not** available — TwelveMonkeys does not support the HEVC codec used by HEIC. A server-side HEIC decoding library must be evaluated and tested before any backend fallback is implemented or specified.
+   - Mobile client must transcode iOS HEIC photos to JPEG using `expo-image-manipulator` before requesting an upload intent (`/api/v1/wardrobe/upload-intent` or `/api/v1/photos/upload-intent`). Client-side JPEG normalization is the only supported format path for MVP.
+   - The backend upload-intent endpoints **reject** `contentType: "image/heic"` with HTTP `400 Bad Request` (code `UNSUPPORTED_IMAGE_FORMAT`). Server-side HEIC transcoding via Java ImageIO / TwelveMonkeys is **not** available.
    - If server-side transcoding for any format is ever added, any temporary files created on disk must be unconditionally deleted in a `finally` block immediately after processing.
-10. **Provisional Latency Target & Timeout Enforcement:**
-   - The 15-second recommendation latency target is provisional and measured strictly on the backend from `recommendation_jobs.created_at` to `completed_at` (excluding mobile upload and render times).
-   - Backend calls to external AI providers must enforce a strict 30-second read timeout, transitioning jobs exceeding timeout to `FAILED` with code `AI_INFERENCE_TIMEOUT` without deducting user quota.
+10. **Timeout Enforcement & Zero Wardrobe Item Hallucination:**
+    - Backend calls to external AI providers must enforce a strict 30-second read timeout, transitioning jobs exceeding timeout to `FAILED` with code `AI_INFERENCE_TIMEOUT` without deducting user quota.
+    - **Zero Item Hallucination Rule:** AI outfit recommendations must strictly recommend combinations composed of items present in the user's active wardrobe catalog. The AI must never invent, recommend, or assume items the user does not own. Natural-language styling rationale explains why the selected user-owned items pair well together.
 
 ---
 
