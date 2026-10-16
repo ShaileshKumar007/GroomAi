@@ -40,11 +40,25 @@ public class UserProfile {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
-    @Column(name = "display_name", length = 64)
+    @Column(name = "display_name", length = 100)
     private String displayName;
 
     @Column(name = "age_bracket", length = 32)
     private String ageBracket;
+
+    @Column(name = "wardrobe_storage_consent_granted", nullable = false)
+    @Builder.Default
+    private boolean wardrobeStorageConsentGranted = false;
+
+    @Column(name = "wardrobe_storage_consent_granted_at")
+    private Instant wardrobeStorageConsentGrantedAt;
+
+    @Column(name = "ai_styling_consent_granted", nullable = false)
+    @Builder.Default
+    private boolean aiStylingConsentGranted = false;
+
+    @Column(name = "ai_styling_consent_granted_at")
+    private Instant aiStylingConsentGrantedAt;
 
     @Column(name = "photo_consent_granted", nullable = false)
     @Builder.Default
