@@ -16,7 +16,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -48,13 +53,15 @@ public class StylePreferences {
     @Builder.Default
     private String preferredFit = "REGULAR";
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "color_preferences", nullable = false, columnDefinition = "jsonb")
     @Builder.Default
-    private String colorPreferences = "[]";
+    private List<String> colorPreferences = new ArrayList<>();
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "avoided_colors", nullable = false, columnDefinition = "jsonb")
     @Builder.Default
-    private String avoidedColors = "[]";
+    private List<String> avoidedColors = new ArrayList<>();
 
     @Column(name = "default_formality", nullable = false, length = 32)
     @Builder.Default

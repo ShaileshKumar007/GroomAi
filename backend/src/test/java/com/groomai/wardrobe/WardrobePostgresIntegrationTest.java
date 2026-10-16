@@ -310,7 +310,7 @@ class WardrobePostgresIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should persist and retrieve StylePreferences entity")
+    @DisplayName("Should persist and retrieve StylePreferences entity with populated JSONB arrays")
     void testStylePreferencesPersistence() {
         User user = createTestUser("style_user_" + UUID.randomUUID() + "@example.com");
 
@@ -318,8 +318,8 @@ class WardrobePostgresIntegrationTest {
             .user(user)
             .primaryStyle("SMART_CASUAL")
             .preferredFit("SLIM")
-            .colorPreferences("[\"NAVY\", \"WHITE\", \"OLIVE\"]")
-            .avoidedColors("[\"YELLOW\"]")
+            .colorPreferences(List.of("NAVY", "WHITE", "OLIVE"))
+            .avoidedColors(List.of("YELLOW"))
             .defaultFormality("SMART_CASUAL")
             .build();
 
@@ -329,7 +329,24 @@ class WardrobePostgresIntegrationTest {
         assertThat(retrieved).isPresent();
         assertThat(retrieved.get().getPrimaryStyle()).isEqualTo("SMART_CASUAL");
         assertThat(retrieved.get().getPreferredFit()).isEqualTo("SLIM");
-        assertThat(retrieved.get().getColorPreferences()).contains("NAVY");
-        assertThat(retrieved.get().getAvoidedColors()).contains("YELLOW");
+        assertThat(retrieved.get().getColorPreferences()).containsExactly("NAVY", "WHITE", "OLIVE");
+        assertThat(retrieved.get().getAvoidedColors()).containsExactly("YELLOW");
+    }
+
+    @Test
+    @DisplayName("Should persist and retrieve StylePreferences with empty default JSONB arrays")
+    void testStylePreferencesDefaultsWithEmptyJsonbArrays() {
+        User user = createTestUser("style_defaults_" + UUID.randomUUID() + "@example.com");
+
+        StylePreferences prefs = StylePreferences.builder()
+            .user(user)
+            .build();
+
+        stylePreferencesRepository.save(prefs);
+
+        Optional<StylePreferences> retrieved = stylePreferencesRepository.findByUserId(user.getId());
+        assertThat(retrieved).isPresent();
+        assertThat(retrieved.get().getColorPreferences()).isNotNull().isEmpty();
+        assertThat(retrieved.get().getAvoidedColors()).isNotNull().isEmpty();
     }
 }
