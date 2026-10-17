@@ -90,6 +90,7 @@ test-results/
 *.log
 *.log.*
 logs/
+data/
 *.sqlite
 *.sqlite3
 *.db

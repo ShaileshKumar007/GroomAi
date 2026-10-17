@@ -27,3 +27,8 @@ groomai:
     secret: ${JWT_SECRET:dGVzdC1zZWNyZXQta2V5LXNob3VsZC1iZS1hdC1sZWFzdC0yNTYtYml0cy1sb25nLWZvci1oczI1Ng==}
     access-token-expiration-ms: ${JWT_EXPIRATION_MS:900000}
     refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:2592000000}
+  storage:
+    mode: ${STORAGE_MODE:local}
+    local:
+      base-dir: ${STORAGE_LOCAL_BASE_DIR:./data/storage}
+      base-url: ${STORAGE_LOCAL_BASE_URL:http://localhost:8080}
