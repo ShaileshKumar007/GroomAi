@@ -172,6 +172,8 @@ class AbandonedStorageSweeperTest {
 
         org.mockito.Mockito.doThrow(new com.groomai.storage.exception.StorageException("Simulated I/O error"))
             .when(objectStorageService).delete(failingKey);
+        org.mockito.Mockito.doNothing()
+            .when(objectStorageService).delete(succeedingKey);
 
         // Deleting failingKey fails, but succeedingKey succeeds
         int deletedCount = sweeper.sweepAbandonedUploads(Duration.ofHours(24));
