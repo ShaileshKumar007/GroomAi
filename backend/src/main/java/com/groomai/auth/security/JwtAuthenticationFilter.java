@@ -53,6 +53,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (claimsOpt.isPresent()) {
             Claims claims = claimsOpt.get();
             try {
+                // Reject tokens with non-access purpose (e.g., upload-intent tickets)
+                String purpose = claims.get(JwtService.CLAIM_PURPOSE, String.class);
+                if (purpose != null && !JwtService.PURPOSE_ACCESS_TOKEN.equals(purpose)) {
+                    log.debug("Bearer token rejected: non-access purpose claim [{}]", purpose);
+                    SecurityContextHolder.clearContext();
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 UUID userId = UUID.fromString(claims.getSubject());
                 Optional<User> userOpt = userRepository.findById(userId);
 

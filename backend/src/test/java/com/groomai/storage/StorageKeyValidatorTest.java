@@ -92,4 +92,43 @@ class StorageKeyValidatorTest {
         assertThatThrownBy(() -> StorageKeyValidator.resolveAndVerify(tempDir, "../../../etc/passwd.jpg"))
             .isInstanceOf(InvalidStorageKeyException.class);
     }
+
+    @Test
+    @DisplayName("Should extract valid user UUID from storage key")
+    void testExtractUserIdSuccess() {
+        java.util.UUID expectedUserId = java.util.UUID.randomUUID();
+        String key = "wardrobe/" + expectedUserId + "/item-123.jpg";
+
+        java.util.UUID extracted = StorageKeyValidator.extractUserId(key);
+        assertThat(extracted).isEqualTo(expectedUserId);
+    }
+
+    @Test
+    @DisplayName("Should reject extractUserId when user segment is not a valid UUID")
+    void testExtractUserIdInvalidUuid() {
+        String key = "wardrobe/not-a-valid-uuid/item-123.jpg";
+
+        assertThatThrownBy(() -> StorageKeyValidator.extractUserId(key))
+            .isInstanceOf(InvalidStorageKeyException.class)
+            .hasMessageContaining("not a valid UUID");
+    }
+
+    @Test
+    @DisplayName("Should generate canonical wardrobe key for user")
+    void testGenerateWardrobeKey() {
+        java.util.UUID userId = java.util.UUID.randomUUID();
+        String key = StorageKeyValidator.generateWardrobeKey(userId);
+
+        assertThat(key).startsWith("wardrobe/" + userId + "/");
+        assertThat(key).endsWith(".jpg");
+        StorageKeyValidator.validateKey(key);
+        assertThat(StorageKeyValidator.extractUserId(key)).isEqualTo(userId);
+    }
+
+    @Test
+    @DisplayName("Should reject generateWardrobeKey for null userId")
+    void testGenerateWardrobeKeyNullUser() {
+        assertThatThrownBy(() -> StorageKeyValidator.generateWardrobeKey(null))
+            .isInstanceOf(InvalidStorageKeyException.class);
+    }
 }

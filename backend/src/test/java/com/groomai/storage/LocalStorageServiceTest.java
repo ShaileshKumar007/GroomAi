@@ -65,19 +65,61 @@ class LocalStorageServiceTest {
     }
 
     @Test
-    @DisplayName("Should overwrite existing object atomically")
-    void testOverwriteObject() throws IOException {
+    @DisplayName("Should reject storing to an existing object key with StorageObjectAlreadyExistsException (create-only)")
+    void testRejectExistingObject_createOnly() throws IOException {
         String key = "wardrobe/user-1/jacket.jpg";
         byte[] firstContent = "first-content".getBytes(StandardCharsets.UTF_8);
         byte[] secondContent = "second-updated-content".getBytes(StandardCharsets.UTF_8);
 
         storageService.store(key, new ByteArrayInputStream(firstContent), firstContent.length, "image/jpeg");
-        storageService.store(key, new ByteArrayInputStream(secondContent), secondContent.length, "image/jpeg");
 
+        assertThatThrownBy(() -> storageService.store(key, new ByteArrayInputStream(secondContent), secondContent.length, "image/jpeg"))
+            .isInstanceOf(com.groomai.storage.exception.StorageObjectAlreadyExistsException.class)
+            .hasMessageContaining("already exists");
+
+        // Verify original content was not overwritten or corrupted
         try (InputStream stream = storageService.load(key)) {
             byte[] readBytes = stream.readAllBytes();
-            assertThat(readBytes).isEqualTo(secondContent);
+            assertThat(readBytes).isEqualTo(firstContent);
         }
+    }
+
+    @Test
+    @DisplayName("Should safely handle concurrent upload attempts to the same key: exactly one succeeds")
+    void testConcurrentUploadAttempts() throws InterruptedException {
+        String key = "wardrobe/user-1/race-item.jpg";
+        int threadCount = 8;
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(threadCount);
+        java.util.concurrent.CountDownLatch readyLatch = new java.util.concurrent.CountDownLatch(threadCount);
+        java.util.concurrent.CountDownLatch startLatch = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger conflictCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        for (int i = 0; i < threadCount; i++) {
+            final int index = i;
+            executor.submit(() -> {
+                readyLatch.countDown();
+                try {
+                    startLatch.await();
+                    byte[] payload = ("thread-content-" + index).getBytes(StandardCharsets.UTF_8);
+                    storageService.store(key, new ByteArrayInputStream(payload), payload.length, "image/jpeg");
+                    successCount.incrementAndGet();
+                } catch (com.groomai.storage.exception.StorageObjectAlreadyExistsException e) {
+                    conflictCount.incrementAndGet();
+                } catch (Exception e) {
+                    // unexpected
+                }
+            });
+        }
+
+        readyLatch.await();
+        startLatch.countDown();
+        executor.shutdown();
+        executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS);
+
+        assertThat(successCount.get()).isEqualTo(1);
+        assertThat(conflictCount.get()).isEqualTo(threadCount - 1);
+        assertThat(storageService.exists(key)).isTrue();
     }
 
     @Test
@@ -144,5 +186,109 @@ class LocalStorageServiceTest {
 
         assertThatThrownBy(() -> storageService.generateDownloadUrl("../etc/passwd.jpg", Duration.ofMinutes(15)))
             .isInstanceOf(InvalidStorageKeyException.class);
+    }
+
+    @Test
+    @DisplayName("Should publish atomically via hard link and clean up temporary file on success")
+    void testAtomicPublicationCleansUpTempFile() throws IOException {
+        String key = "wardrobe/user-1/clean.jpg";
+        byte[] payload = "atomic-payload".getBytes(StandardCharsets.UTF_8);
+
+        storageService.store(key, new ByteArrayInputStream(payload), payload.length, "image/jpeg", "test-ticket");
+
+        assertThat(storageService.exists(key)).isTrue();
+
+        try (InputStream in = storageService.load(key)) {
+            assertThat(in.readAllBytes()).isEqualTo(payload);
+        }
+
+        Path parentDir = tempDir.resolve("wardrobe/user-1");
+        try (var stream = java.nio.file.Files.list(parentDir)) {
+            var files = stream.map(p -> p.getFileName().toString()).toList();
+            assertThat(files).containsExactlyInAnyOrder("clean.jpg", "clean.jpg.meta");
+            assertThat(files).noneMatch(name -> name.endsWith(".tmp"));
+        }
+    }
+
+    @Test
+    @DisplayName("Should clean up temp file and leave no destination file if input stream fails during store")
+    void testStreamFailureCleansUpTempFileAndLeavesNoDestination() throws IOException {
+        String key = "wardrobe/user-1/partial.jpg";
+        InputStream failingStream = new InputStream() {
+            private int count = 0;
+            @Override
+            public int read() throws IOException {
+                if (++count > 10) {
+                    throw new IOException("Simulated network stream disconnect");
+                }
+                return 42;
+            }
+        };
+
+        assertThatThrownBy(() -> storageService.store(key, failingStream, 100, "image/jpeg"))
+            .isInstanceOf(com.groomai.storage.exception.StorageException.class)
+            .hasMessageContaining("Failed to store object");
+
+        assertThat(storageService.exists(key)).isFalse();
+
+        Path parentDir = tempDir.resolve("wardrobe/user-1");
+        if (java.nio.file.Files.exists(parentDir)) {
+            try (var stream = java.nio.file.Files.list(parentDir)) {
+                var files = stream.map(p -> p.getFileName().toString()).toList();
+                assertThat(files).noneMatch(name -> name.endsWith(".tmp"));
+                assertThat(files).doesNotContain("partial.jpg");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Rollback on conflicting upload must never delete an existing target from another operation")
+    void testConflictingUploadDoesNotDeleteExistingTarget() throws IOException {
+        String key = "wardrobe/user-1/target-safe.jpg";
+        byte[] originalContent = "original-verified-bytes".getBytes(StandardCharsets.UTF_8);
+        storageService.store(key, new ByteArrayInputStream(originalContent), originalContent.length, "image/jpeg");
+
+        assertThat(storageService.exists(key)).isTrue();
+
+        byte[] newContent = "new-competing-bytes".getBytes(StandardCharsets.UTF_8);
+        assertThatThrownBy(() -> storageService.store(key, new ByteArrayInputStream(newContent), newContent.length, "image/jpeg"))
+            .isInstanceOf(com.groomai.storage.exception.StorageObjectAlreadyExistsException.class);
+
+        // Existing target must remain intact with original content
+        assertThat(storageService.exists(key)).isTrue();
+        try (InputStream in = storageService.load(key)) {
+            assertThat(in.readAllBytes()).isEqualTo(originalContent);
+        }
+    }
+
+    @Test
+    @DisplayName("Should fail safely and clean up temp file if filesystem does not support hard links")
+    void testUnsupportedFilesystemFailsSafelyWithoutPublishingOrLeavingTempFile() throws IOException {
+        LocalStorageService unsupportedService = new LocalStorageService(tempDir, "http://localhost:8080") {
+            @Override
+            void publishFile(Path targetPath, Path tempFile) throws IOException {
+                throw new UnsupportedOperationException("Hard links unsupported on this volume");
+            }
+        };
+
+        String key = "wardrobe/user-1/unsupported.jpg";
+        byte[] payload = "unsupported-fs-payload".getBytes(StandardCharsets.UTF_8);
+
+        assertThatThrownBy(() -> unsupportedService.store(key, new ByteArrayInputStream(payload), payload.length, "image/jpeg"))
+            .isInstanceOf(com.groomai.storage.exception.StorageException.class)
+            .hasMessageContaining("Filesystem does not support atomic link-based publication");
+
+        // Destination must not be published
+        assertThat(unsupportedService.exists(key)).isFalse();
+
+        // Temp file must be cleaned up
+        Path parentDir = tempDir.resolve("wardrobe/user-1");
+        if (java.nio.file.Files.exists(parentDir)) {
+            try (var stream = java.nio.file.Files.list(parentDir)) {
+                var files = stream.map(p -> p.getFileName().toString()).toList();
+                assertThat(files).noneMatch(name -> name.endsWith(".tmp"));
+                assertThat(files).doesNotContain("unsupported.jpg");
+            }
+        }
     }
 }

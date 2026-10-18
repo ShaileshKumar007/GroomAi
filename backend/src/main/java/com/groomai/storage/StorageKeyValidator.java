@@ -95,4 +95,38 @@ public final class StorageKeyValidator {
 
         return resolvedPath;
     }
+
+    /**
+     * Extracts the user UUID from a validated storage key structured as prefix/{userId}/filename.
+     *
+     * @param storageKey the storage key
+     * @return the UUID of the owning user
+     * @throws InvalidStorageKeyException if the key does not contain a valid user UUID segment
+     */
+    public static java.util.UUID extractUserId(String storageKey) {
+        validateKey(storageKey);
+        String[] parts = storageKey.split("/");
+        if (parts.length < 3) {
+            throw new InvalidStorageKeyException("Storage key must contain a user identifier segment: " + storageKey);
+        }
+        try {
+            return java.util.UUID.fromString(parts[1]);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidStorageKeyException("Storage key user segment is not a valid UUID: " + parts[1]);
+        }
+    }
+
+    /**
+     * Generates a canonical storage key for a wardrobe item belonging to the specified user.
+     * Format: wardrobe/{userId}/{uuid}.jpg
+     *
+     * @param userId the user ID
+     * @return canonical wardrobe storage key
+     */
+    public static String generateWardrobeKey(java.util.UUID userId) {
+        if (userId == null) {
+            throw new InvalidStorageKeyException("User ID must not be null when generating wardrobe storage key.");
+        }
+        return "wardrobe/" + userId + "/" + java.util.UUID.randomUUID() + ".jpg";
+    }
 }

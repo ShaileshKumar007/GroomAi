@@ -26,6 +26,21 @@ public interface ObjectStorageService {
     void store(String storageKey, InputStream inputStream, long contentLength, String contentType);
 
     /**
+     * Stores an object at the designated storage key with associated upload ticket metadata.
+     *
+     * @param storageKey the sanitized target key (e.g., "wardrobe/{userId}/{filename}.jpg")
+     * @param inputStream the data stream to write
+     * @param contentLength total byte size of the content
+     * @param contentType MIME type of the content (e.g., "image/jpeg")
+     * @param uploadTicket signed upload ticket associated with the upload
+     * @throws InvalidStorageKeyException if storageKey is invalid or contains traversal sequences
+     * @throws StorageException if an I/O error occurs while persisting the object
+     */
+    default void store(String storageKey, InputStream inputStream, long contentLength, String contentType, String uploadTicket) {
+        store(storageKey, inputStream, contentLength, contentType);
+    }
+
+    /**
      * Retrieves the binary input stream for a stored object.
      *
      * @param storageKey the storage key

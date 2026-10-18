@@ -115,6 +115,7 @@ This document details all functional and non-functional requirements for Groom.a
   1. `POST /api/v1/wardrobe/upload-intent` verifies `wardrobe_storage_consent_granted == true` and returns ephemeral upload URL (TTL ≤ 15 min).
   2. Mobile client uploads binary directly to storage.
   3. Subsequent item creation verifies storage object existence and MIME type before activating item.
+  4. Upload authorization is cryptographically bound to the authenticated user, target storage key, and 15-minute TTL via signed upload-intent tickets; local uploads enforce atomic create-only storage to prevent replay or overwrite.
 
 #### FR-010: Lightweight Wardrobe Item Model
 - **Priority:** P0

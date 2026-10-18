@@ -2,13 +2,15 @@ package com.groomai.storage;
 
 import com.groomai.storage.config.StorageProperties;
 import com.groomai.storage.exception.StorageException;
+import com.groomai.storage.exception.StorageObjectAlreadyExistsException;
 import com.groomai.storage.exception.StorageObjectNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -50,7 +52,19 @@ public class LocalStorageService implements ObjectStorageService {
 
     @Override
     public void store(String storageKey, InputStream inputStream, long contentLength, String contentType) {
+        store(storageKey, inputStream, contentLength, contentType, null);
+    }
+
+    @Override
+    public void store(String storageKey, InputStream inputStream, long contentLength, String contentType, String uploadTicket) {
         Path targetPath = StorageKeyValidator.resolveAndVerify(baseDir, storageKey);
+
+        if (Files.exists(targetPath)) {
+            log.warn("Storage object already exists at key [{}]: cannot overwrite", storageKey);
+            throw new StorageObjectAlreadyExistsException(
+                "A storage object already exists at storage key: " + storageKey
+            );
+        }
 
         Path parentDir = targetPath.getParent();
         try {
@@ -58,22 +72,46 @@ public class LocalStorageService implements ObjectStorageService {
                 Files.createDirectories(parentDir);
             }
 
-            // Write to a temporary file first, then atomically move to target
+            // Write to a temporary file first, then atomically publish via hard link without overwrite
             Path tempFile = Files.createTempFile(parentDir, "upload_", ".tmp");
+            boolean targetPublished = false;
             try {
                 Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
 
+                // Publish atomically using hard link: creates targetPath referencing the completed inode.
+                // Fails atomically with FileAlreadyExistsException if targetPath already exists (atomic no-overwrite).
                 try {
-                    Files.move(tempFile, targetPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                } catch (AtomicMoveNotSupportedException e) {
-                    Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                    publishFile(targetPath, tempFile);
+                    targetPublished = true;
+                } catch (UnsupportedOperationException e) {
+                    log.error("Filesystem does not support atomic link-based publication at: {}", targetPath, e);
+                    throw new StorageException("Filesystem does not support atomic link-based publication at: " + targetPath, e);
+                }
+
+                if (uploadTicket != null && !uploadTicket.isBlank()) {
+                    Path metaPath = getMetaPath(targetPath);
+                    Files.writeString(metaPath, uploadTicket, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
                 }
 
                 log.debug("Successfully stored object at key: [{}] (bytes: {})", storageKey, contentLength);
+            } catch (Exception e) {
+                if (targetPublished) {
+                    // Only roll back destination if THIS operation published it (e.g., meta write failed)
+                    Files.deleteIfExists(getMetaPath(targetPath));
+                    Files.deleteIfExists(targetPath);
+                }
+                throw e;
             } finally {
-                // Ensure temp file is cleaned up if move failed
+                // Ensure temp file is cleaned up on success and all failure paths
                 Files.deleteIfExists(tempFile);
             }
+        } catch (FileAlreadyExistsException e) {
+            log.warn("Storage object already exists at key [{}]: cannot overwrite", storageKey);
+            throw new StorageObjectAlreadyExistsException(
+                "A storage object already exists at storage key: " + storageKey
+            );
+        } catch (StorageException e) {
+            throw e;
         } catch (IOException e) {
             log.error("Failed to store object at key [{}]: {}", storageKey, e.getMessage(), e);
             throw new StorageException("Failed to store object at storage key: " + storageKey, e);
@@ -116,7 +154,13 @@ public class LocalStorageService implements ObjectStorageService {
             String probedType = Files.probeContentType(targetPath);
             String contentType = (probedType != null) ? probedType : "image/jpeg";
 
-            return new StorageObjectMetadata(storageKey, size, contentType, lastModified);
+            String uploadTicket = null;
+            Path metaPath = getMetaPath(targetPath);
+            if (Files.exists(metaPath) && Files.isRegularFile(metaPath)) {
+                uploadTicket = Files.readString(metaPath, StandardCharsets.UTF_8).trim();
+            }
+
+            return new StorageObjectMetadata(storageKey, size, contentType, lastModified, uploadTicket);
         } catch (IOException e) {
             log.error("Failed to read metadata for storage key [{}]: {}", storageKey, e.getMessage(), e);
             throw new StorageException("Failed to read metadata for storage key: " + storageKey, e);
@@ -128,6 +172,8 @@ public class LocalStorageService implements ObjectStorageService {
         Path targetPath = StorageKeyValidator.resolveAndVerify(baseDir, storageKey);
         try {
             boolean deleted = Files.deleteIfExists(targetPath);
+            Path metaPath = getMetaPath(targetPath);
+            Files.deleteIfExists(metaPath);
             if (deleted) {
                 log.debug("Deleted storage object at key: [{}]", storageKey);
             }
@@ -135,6 +181,18 @@ public class LocalStorageService implements ObjectStorageService {
             log.error("Failed to delete storage object [{}]: {}", storageKey, e.getMessage(), e);
             throw new StorageException("Failed to delete storage object at key: " + storageKey, e);
         }
+    }
+
+    /**
+     * Atomically links the targetPath to the completed tempFile inode.
+     * Package-private to allow testing unsupported filesystem exceptions.
+     */
+    void publishFile(Path targetPath, Path tempFile) throws IOException {
+        Files.createLink(targetPath, tempFile);
+    }
+
+    private Path getMetaPath(Path targetPath) {
+        return targetPath.resolveSibling(targetPath.getFileName().toString() + ".meta");
     }
 
     @Override

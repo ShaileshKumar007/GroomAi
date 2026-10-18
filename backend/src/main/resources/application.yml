@@ -3,6 +3,10 @@ spring:
     name: groomai-backend
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 15MB
 
 server:
   port: ${SERVER_PORT:8080}
@@ -28,6 +32,7 @@ groomai:
     access-token-expiration-ms: ${JWT_EXPIRATION_MS:900000}
     refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:2592000000}
   storage:
+    upload-ticket-secret: ${STORAGE_UPLOAD_TICKET_SECRET:dXBsb2FkLXRpY2tldC1zZWNyZXQtc2hvdWxkLWJlLWF0LWxlYXN0LTI1Ni1iaXRzLWZvci1oczI1Ng==}
     mode: ${STORAGE_MODE:local}
     local:
       base-dir: ${STORAGE_LOCAL_BASE_DIR:./data/storage}
