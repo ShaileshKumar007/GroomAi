@@ -54,6 +54,9 @@ public class JwtService {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
+    public static final String CLAIM_PURPOSE = "purpose";
+    public static final String PURPOSE_ACCESS_TOKEN = "ACCESS_TOKEN";
+
     public String generateAccessToken(User user) {
         Instant now = Instant.now();
         Instant expiry = now.plusMillis(jwtProperties.accessTokenExpirationMs());
@@ -62,6 +65,7 @@ public class JwtService {
             .subject(user.getId().toString())
             .claim("email", user.getEmail())
             .claim("role", user.getRole())
+            .claim(CLAIM_PURPOSE, PURPOSE_ACCESS_TOKEN)
             .issuedAt(Date.from(now))
             .expiration(Date.from(expiry))
             .signWith(signingKey)

@@ -125,4 +125,58 @@ class JwtAuthenticationFilterTest {
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         verify(filterChain).doFilter(request, response);
     }
+
+    @Test
+    @DisplayName("filter: rejects upload-intent ticket when presented as Bearer access token")
+    void doFilter_shouldRejectUploadTicketAsBearerToken() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+            .id(userId)
+            .email("user@example.com")
+            .role("ROLE_USER")
+            .build();
+
+        com.groomai.storage.config.StorageProperties storageProperties = new com.groomai.storage.config.StorageProperties();
+        storageProperties.setUploadTicketSecret("dXBsb2FkLXRpY2tldC1zZWNyZXQtc2hvdWxkLWJlLWF0LWxlYXN0LTI1Ni1iaXRzLWZvci1oczI1Ng==");
+        com.groomai.storage.UploadTicketServiceImpl uploadTicketService = new com.groomai.storage.UploadTicketServiceImpl(storageProperties);
+
+        String uploadTicket = uploadTicketService.generateUploadTicket(userId, "wardrobe/" + userId + "/item-1.jpg", java.time.Duration.ofMinutes(15));
+
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + uploadTicket);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        // Upload ticket must NEVER authenticate as an access token
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("filter: rejects token with purpose claim other than ACCESS_TOKEN")
+    void doFilter_shouldRejectTokenWithInvalidPurposeClaim() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+            .id(userId)
+            .email("user@example.com")
+            .role("ROLE_USER")
+            .build();
+
+        // Even if signed with the JWT key, if purpose == UPLOAD_INTENT, it must be rejected
+        String nonAccessToken = io.jsonwebtoken.Jwts.builder()
+            .subject(userId.toString())
+            .claim("email", user.getEmail())
+            .claim("role", user.getRole())
+            .claim("purpose", "UPLOAD_INTENT")
+            .issuedAt(java.util.Date.from(Instant.now()))
+            .expiration(java.util.Date.from(Instant.now().plusSeconds(900)))
+            .signWith(jwtService.getSigningKey())
+            .compact();
+
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + nonAccessToken);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(filterChain).doFilter(request, response);
+    }
 }

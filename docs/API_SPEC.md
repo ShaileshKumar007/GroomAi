@@ -298,8 +298,10 @@ List endpoints support pagination:
       "expiresAt": "2026-10-16T08:45:00Z",
       "httpMethod": "POST",
       "requiredHeaders": {
-        "Content-Type": "multipart/form-data"
-      }
+        "Content-Type": "multipart/form-data",
+        "X-Upload-Ticket": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      },
+      "uploadTicket": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
     }
     ```
   - `403 Forbidden`: `code: "CONSENT_REQUIRED"` (Wardrobe storage consent not granted).
@@ -307,7 +309,17 @@ List endpoints support pagination:
 
 ### 4.1.1 Local Storage Adapter Endpoints (Local Dev / Device Testing Only)
 - **POST `/api/v1/storage/upload/{storageKey}`**:
-  - Direct binary or multipart upload endpoint used in local development mode. Saves file to `./data/storage/{storageKey}`. Requires authenticated Bearer token matching `storageKey` user prefix.
+  - Direct binary or multipart upload endpoint used in local development mode. Saves file to `./data/storage/{storageKey}`.
+  - **Authorization & Security:**
+    - Requires valid Bearer access token matching `storageKey` user prefix.
+    - Requires `X-Upload-Ticket` header containing the signed upload ticket issued by `POST /api/v1/wardrobe/upload-intent`. Query parameter transport is rejected.
+    - **Create-Only Protection:** Operates as atomic create-only storage. Rejects replay or overwrite attempts targeting an existing storage key.
+  - **Responses:**
+    - `200 OK`: File uploaded successfully.
+    - `401 Unauthorized`: `code: "UNAUTHORIZED"` (Missing or invalid Bearer access token).
+    - `403 Forbidden`: `code: "INVALID_UPLOAD_TICKET"` (Missing, tampered, or mismatched ticket), `code: "EXPIRED_UPLOAD_TICKET"` (Ticket expired after 15m), or `code: "FORBIDDEN"` (Cross-tenant user mismatch).
+    - `409 Conflict`: `code: "STORAGE_OBJECT_ALREADY_EXISTS"` (Target file already exists; overwrite prohibited).
+    - `400 Bad Request`: `code: "INVALID_IMAGE_PAYLOAD"` (Payload exceeds 10MB).
 - **GET `/api/v1/storage/files/{storageKey}`**:
   - Serves authenticated image stream from local disk with appropriate `Content-Type: image/jpeg` header. Requires valid Bearer token matching `storageKey` user prefix.
 
@@ -325,7 +337,8 @@ List endpoints support pagination:
     "pattern": "SOLID",
     "formalityLevel": "SMART_CASUAL",
     "season": "ALL_SEASON",
-    "storageKey": "wardrobe/user-uuid/item-abc.jpg"
+    "storageKey": "wardrobe/user-uuid/item-abc.jpg",
+    "uploadTicket": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   }
   ```
 - **Validation Rules:**
@@ -336,6 +349,7 @@ List endpoints support pagination:
   - `pattern`: Optional enum (default: `SOLID`). Values: `SOLID`, `STRIPED`, `CHECKED`, `FLORAL`, `GRAPHIC`, `TEXTURED`.
   - `season`: Optional enum (default: `ALL_SEASON`). Values: `SPRING`, `SUMMER`, `FALL`, `WINTER`, `ALL_SEASON`.
   - `storageKey`: Required string matching uploaded asset.
+  - `uploadTicket`: Optional string. If omitted, backend verifies the ticket persisted in storage metadata at upload time.
   - **Storage Object Verification:** The backend verifies that the object referenced by `storageKey` exists, begins with JPEG magic bytes (`0xFF, 0xD8, 0xFF`), does not exceed 10MB, and has image dimensions of at least 200x200 px.
 - **Responses:**
   - `201 Created`:
@@ -358,6 +372,8 @@ List endpoints support pagination:
     }
     ```
   - `400 Bad Request`: Validation failure (field validation), `code: "INVALID_IMAGE_PAYLOAD"` (magic byte / dimension check failed), or `code: "STORAGE_OBJECT_NOT_FOUND"`.
+  - `403 Forbidden`: `code: "INVALID_UPLOAD_TICKET"` (Missing or invalid authorization ticket), `code: "EXPIRED_UPLOAD_TICKET"` (Intent ticket expired), or `code: "FORBIDDEN"` (Cross-tenant access).
+  - `409 Conflict`: `code: "DUPLICATE_ITEM"` (Item with this storage key has already been cataloged).
 
 ### 4.3 List Wardrobe Items
 - **Method & Path:** `GET /api/v1/wardrobe/items`
