@@ -282,4 +282,86 @@ class WardrobeControllerTest {
             .andExpect(jsonPath("$.downloadUrl").value("http://localhost:8080/api/v1/storage/files/" + storageKey))
             .andExpect(jsonPath("$.status").value("ACTIVE"));
     }
+
+    @Test
+    @DisplayName("GET /items: lists paginated wardrobe items for authenticated user")
+    void listWardrobeItems_authenticated_returns200() throws Exception {
+        UUID itemId = UUID.randomUUID();
+        String storageKey = "wardrobe/" + userId + "/item-1.jpg";
+        WardrobeItemResponseDto item = new WardrobeItemResponseDto(
+            itemId,
+            "Oxford Shirt",
+            Category.TOP,
+            "BUTTON_DOWN",
+            Color.NAVY,
+            null,
+            Pattern.SOLID,
+            FormalityLevel.CASUAL,
+            Season.ALL_SEASON,
+            storageKey,
+            "http://localhost:8080/api/v1/storage/files/" + storageKey,
+            ItemStatus.ACTIVE,
+            Instant.now(),
+            Instant.now()
+        );
+
+        com.groomai.common.dto.PagedResponse<WardrobeItemResponseDto> paged =
+            new com.groomai.common.dto.PagedResponse<>(java.util.List.of(item), 0, 20, 1L, 1, true, true);
+
+        when(wardrobeService.listWardrobeItems(eq(userId), any(), any(), any())).thenReturn(paged);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/wardrobe/items")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].id").value(itemId.toString()))
+            .andExpect(jsonPath("$.content[0].name").value("Oxford Shirt"))
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.pageNumber").value(0));
+    }
+
+    @Test
+    @DisplayName("GET /items/{id}: returns wardrobe item details for owner")
+    void getWardrobeItem_owner_returns200() throws Exception {
+        UUID itemId = UUID.randomUUID();
+        String storageKey = "wardrobe/" + userId + "/item-1.jpg";
+        WardrobeItemResponseDto item = new WardrobeItemResponseDto(
+            itemId,
+            "Oxford Shirt",
+            Category.TOP,
+            "BUTTON_DOWN",
+            Color.NAVY,
+            null,
+            Pattern.SOLID,
+            FormalityLevel.CASUAL,
+            Season.ALL_SEASON,
+            storageKey,
+            "http://localhost:8080/api/v1/storage/files/" + storageKey,
+            ItemStatus.ACTIVE,
+            Instant.now(),
+            Instant.now()
+        );
+
+        when(wardrobeService.getWardrobeItem(eq(userId), eq(itemId))).thenReturn(item);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/wardrobe/items/" + itemId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(itemId.toString()))
+            .andExpect(jsonPath("$.name").value("Oxford Shirt"))
+            .andExpect(jsonPath("$.downloadUrl").value("http://localhost:8080/api/v1/storage/files/" + storageKey));
+    }
+
+    @Test
+    @DisplayName("GET /items/{id}: returns 404 when item does not exist or not owned by user")
+    void getWardrobeItem_notFound_returns404() throws Exception {
+        UUID itemId = UUID.randomUUID();
+        when(wardrobeService.getWardrobeItem(eq(userId), eq(itemId))).thenThrow(
+            new com.groomai.common.exception.GroomAiException("Item not found", org.springframework.http.HttpStatus.NOT_FOUND, "ITEM_NOT_FOUND")
+        );
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/wardrobe/items/" + itemId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("ITEM_NOT_FOUND"));
+    }
 }

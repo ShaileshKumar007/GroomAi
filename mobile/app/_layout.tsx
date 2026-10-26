@@ -28,6 +28,27 @@ export default function RootLayout(): React.JSX.Element {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="wardrobe/index"
+          options={{
+            title: 'Digital Wardrobe',
+            headerShown: true,
+          }}
+        />
+        <Stack.Screen
+          name="wardrobe/add"
+          options={{
+            title: 'Add Clothing Item',
+            headerShown: true,
+          }}
+        />
+        <Stack.Screen
+          name="wardrobe/[id]"
+          options={{
+            title: 'Garment Details',
+            headerShown: true,
+          }}
+        />
       </Stack>
     </AuthProvider>
   );

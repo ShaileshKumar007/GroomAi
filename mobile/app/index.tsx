@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
 import {
   validateDisplayName,
@@ -19,6 +20,7 @@ import {
 } from '../src/utils/validation';
 
 export default function HomeScreen(): React.JSX.Element {
+  const router = useRouter();
   const {
     user,
     isAuthenticated,
@@ -171,6 +173,22 @@ export default function HomeScreen(): React.JSX.Element {
               </View>
 
               <View style={styles.actionButtonGroup}>
+                <TouchableOpacity
+                  style={[styles.button, styles.primaryButton]}
+                  onPress={() => router.push('/wardrobe')}
+                  disabled={submitting}
+                >
+                  <Text style={styles.primaryButtonText}>👗 View Digital Wardrobe</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.button, styles.secondaryButton]}
+                  onPress={() => router.push('/wardrobe/add')}
+                  disabled={submitting}
+                >
+                  <Text style={styles.secondaryButtonText}>+ Add Wardrobe Item</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity
                   style={[styles.button, styles.secondaryButton]}
                   onPress={refreshUser}

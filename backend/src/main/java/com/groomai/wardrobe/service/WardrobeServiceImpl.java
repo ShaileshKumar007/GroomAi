@@ -165,4 +165,43 @@ public class WardrobeServiceImpl implements WardrobeService {
         String downloadUrl = objectStorageService.generateDownloadUrl(saved.getStorageKey(), Duration.ofMinutes(15));
         return WardrobeItemResponseDto.fromEntity(saved, downloadUrl);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.groomai.common.dto.PagedResponse<WardrobeItemResponseDto> listWardrobeItems(
+        UUID userId,
+        com.groomai.wardrobe.enums.Category category,
+        ItemStatus status,
+        org.springframework.data.domain.Pageable pageable
+    ) {
+        ItemStatus targetStatus = (status != null) ? status : ItemStatus.ACTIVE;
+        org.springframework.data.domain.Page<WardrobeItem> page;
+
+        if (category != null) {
+            page = wardrobeItemRepository.findByUserIdAndCategoryAndStatus(userId, category, targetStatus, pageable);
+        } else {
+            page = wardrobeItemRepository.findByUserIdAndStatus(userId, targetStatus, pageable);
+        }
+
+        org.springframework.data.domain.Page<WardrobeItemResponseDto> dtoPage = page.map(item -> {
+            String downloadUrl = objectStorageService.generateDownloadUrl(item.getStorageKey(), Duration.ofMinutes(15));
+            return WardrobeItemResponseDto.fromEntity(item, downloadUrl);
+        });
+
+        return com.groomai.common.dto.PagedResponse.from(dtoPage);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public WardrobeItemResponseDto getWardrobeItem(UUID userId, UUID itemId) {
+        WardrobeItem item = wardrobeItemRepository.findByIdAndUserId(itemId, userId)
+            .orElseThrow(() -> new GroomAiException(
+                "Wardrobe item not found: " + itemId,
+                HttpStatus.NOT_FOUND,
+                "ITEM_NOT_FOUND"
+            ));
+
+        String downloadUrl = objectStorageService.generateDownloadUrl(item.getStorageKey(), Duration.ofMinutes(15));
+        return WardrobeItemResponseDto.fromEntity(item, downloadUrl);
+    }
 }

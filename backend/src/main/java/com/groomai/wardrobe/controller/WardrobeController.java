@@ -56,4 +56,32 @@ public class WardrobeController {
         WardrobeItemResponseDto response = wardrobeService.createWardrobeItem(principal.id(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
+    /**
+     * Lists paginated wardrobe items for the authenticated user matching docs/API_SPEC.md Section 4.3.
+     */
+    @org.springframework.web.bind.annotation.GetMapping("/items")
+    public ResponseEntity<com.groomai.common.dto.PagedResponse<WardrobeItemResponseDto>> listWardrobeItems(
+        @AuthenticationPrincipal UserPrincipal principal,
+        @org.springframework.web.bind.annotation.RequestParam(required = false) com.groomai.wardrobe.enums.Category category,
+        @org.springframework.web.bind.annotation.RequestParam(required = false) com.groomai.wardrobe.enums.ItemStatus status,
+        @org.springframework.data.web.PageableDefault(size = 20, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC)
+        org.springframework.data.domain.Pageable pageable
+    ) {
+        com.groomai.common.dto.PagedResponse<WardrobeItemResponseDto> response =
+            wardrobeService.listWardrobeItems(principal.id(), category, status, pageable);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Retrieves a single wardrobe item by ID for the authenticated user matching docs/API_SPEC.md Section 4.4.
+     */
+    @org.springframework.web.bind.annotation.GetMapping("/items/{id}")
+    public ResponseEntity<WardrobeItemResponseDto> getWardrobeItem(
+        @AuthenticationPrincipal UserPrincipal principal,
+        @org.springframework.web.bind.annotation.PathVariable java.util.UUID id
+    ) {
+        WardrobeItemResponseDto response = wardrobeService.getWardrobeItem(principal.id(), id);
+        return ResponseEntity.ok(response);
+    }
 }
