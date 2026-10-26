@@ -336,4 +336,100 @@ class WardrobeServiceTest {
             .isInstanceOf(com.groomai.storage.exception.InvalidUploadTicketException.class)
             .hasMessageContaining("Tampered ticket");
     }
+
+    @Test
+    @DisplayName("listWardrobeItems: returns paged items with ephemeral download URLs")
+    void listWardrobeItems_success() {
+        WardrobeItem item = WardrobeItem.builder()
+            .id(UUID.randomUUID())
+            .user(user)
+            .name("Oxford Shirt")
+            .category(Category.TOP)
+            .primaryColor(Color.NAVY)
+            .storageKey("wardrobe/" + userId + "/item-1.jpg")
+            .status(ItemStatus.ACTIVE)
+            .build();
+
+        org.springframework.data.domain.Page<WardrobeItem> page =
+            new org.springframework.data.domain.PageImpl<>(java.util.List.of(item));
+
+        when(wardrobeItemRepository.findByUserIdAndStatus(eq(userId), eq(ItemStatus.ACTIVE), any()))
+            .thenReturn(page);
+        when(objectStorageService.generateDownloadUrl(eq(item.getStorageKey()), any(Duration.class)))
+            .thenReturn("http://download.url/item-1.jpg");
+
+        var response = wardrobeService.listWardrobeItems(
+            userId, null, ItemStatus.ACTIVE, org.springframework.data.domain.PageRequest.of(0, 20)
+        );
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().get(0).name()).isEqualTo("Oxford Shirt");
+        assertThat(response.content().get(0).downloadUrl()).isEqualTo("http://download.url/item-1.jpg");
+        assertThat(response.totalElements()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("listWardrobeItems: filters by category when specified")
+    void listWardrobeItems_withCategory_success() {
+        WardrobeItem item = WardrobeItem.builder()
+            .id(UUID.randomUUID())
+            .user(user)
+            .name("Blue Jeans")
+            .category(Category.BOTTOM)
+            .primaryColor(Color.BLUE)
+            .storageKey("wardrobe/" + userId + "/item-2.jpg")
+            .status(ItemStatus.ACTIVE)
+            .build();
+
+        org.springframework.data.domain.Page<WardrobeItem> page =
+            new org.springframework.data.domain.PageImpl<>(java.util.List.of(item));
+
+        when(wardrobeItemRepository.findByUserIdAndCategoryAndStatus(eq(userId), eq(Category.BOTTOM), eq(ItemStatus.ACTIVE), any()))
+            .thenReturn(page);
+        when(objectStorageService.generateDownloadUrl(eq(item.getStorageKey()), any(Duration.class)))
+            .thenReturn("http://download.url/item-2.jpg");
+
+        var response = wardrobeService.listWardrobeItems(
+            userId, Category.BOTTOM, ItemStatus.ACTIVE, org.springframework.data.domain.PageRequest.of(0, 20)
+        );
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().get(0).category()).isEqualTo(Category.BOTTOM);
+    }
+
+    @Test
+    @DisplayName("getWardrobeItem: returns item with download URL for owner")
+    void getWardrobeItem_success() {
+        UUID itemId = UUID.randomUUID();
+        WardrobeItem item = WardrobeItem.builder()
+            .id(itemId)
+            .user(user)
+            .name("Oxford Shirt")
+            .category(Category.TOP)
+            .primaryColor(Color.NAVY)
+            .storageKey("wardrobe/" + userId + "/item-1.jpg")
+            .status(ItemStatus.ACTIVE)
+            .build();
+
+        when(wardrobeItemRepository.findByIdAndUserId(itemId, userId)).thenReturn(Optional.of(item));
+        when(objectStorageService.generateDownloadUrl(eq(item.getStorageKey()), any(Duration.class)))
+            .thenReturn("http://download.url/item-1.jpg");
+
+        WardrobeItemResponseDto response = wardrobeService.getWardrobeItem(userId, itemId);
+
+        assertThat(response.id()).isEqualTo(itemId);
+        assertThat(response.name()).isEqualTo("Oxford Shirt");
+        assertThat(response.downloadUrl()).isEqualTo("http://download.url/item-1.jpg");
+    }
+
+    @Test
+    @DisplayName("getWardrobeItem: throws GroomAiException with ITEM_NOT_FOUND when not found")
+    void getWardrobeItem_notFound_throwsException() {
+        UUID itemId = UUID.randomUUID();
+        when(wardrobeItemRepository.findByIdAndUserId(itemId, userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> wardrobeService.getWardrobeItem(userId, itemId))
+            .isInstanceOf(com.groomai.common.exception.GroomAiException.class)
+            .hasMessageContaining("Wardrobe item not found");
+    }
 }

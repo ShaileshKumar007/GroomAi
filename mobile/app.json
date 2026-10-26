@@ -22,7 +22,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to catalog clothes in your digital wardrobe.",
+          "cameraPermission": "The app uses your camera to photograph clothing items for your digital wardrobe."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
