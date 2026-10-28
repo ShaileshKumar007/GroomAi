@@ -38,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,6 +63,9 @@ class WardrobeServiceTest {
     @Mock
     private com.groomai.storage.UploadTicketService uploadTicketService;
 
+    @Mock
+    private com.groomai.storage.StorageDeletionOutboxService storageDeletionOutboxService;
+
     private WardrobeService wardrobeService;
 
     private UUID userId;
@@ -76,7 +80,8 @@ class WardrobeServiceTest {
             wardrobeItemRepository,
             objectStorageService,
             wardrobeImageVerificationService,
-            uploadTicketService
+            uploadTicketService,
+            storageDeletionOutboxService
         );
 
         userId = UUID.randomUUID();
@@ -431,5 +436,148 @@ class WardrobeServiceTest {
         assertThatThrownBy(() -> wardrobeService.getWardrobeItem(userId, itemId))
             .isInstanceOf(com.groomai.common.exception.GroomAiException.class)
             .hasMessageContaining("Wardrobe item not found");
+    }
+
+    @Test
+    @DisplayName("updateWardrobeItem: updates mutable metadata and returns updated DTO")
+    void updateWardrobeItem_success() {
+        UUID itemId = UUID.randomUUID();
+        WardrobeItem item = WardrobeItem.builder()
+            .id(itemId)
+            .user(user)
+            .name("Old Shirt")
+            .category(Category.TOP)
+            .primaryColor(Color.BLUE)
+            .storageKey("wardrobe/" + userId + "/item-1.jpg")
+            .status(ItemStatus.ACTIVE)
+            .build();
+
+        when(wardrobeItemRepository.findByIdAndUserId(itemId, userId)).thenReturn(Optional.of(item));
+        when(wardrobeItemRepository.save(any(WardrobeItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(objectStorageService.generateDownloadUrl(eq(item.getStorageKey()), any(Duration.class)))
+            .thenReturn("http://download.url/item-1.jpg");
+
+        var updateRequest = new com.groomai.wardrobe.dto.UpdateWardrobeItemRequestDto(
+            "New Linen Shirt",
+            Category.TOP,
+            "LINEN",
+            Color.WHITE,
+            Color.BLUE,
+            Pattern.STRIPED,
+            FormalityLevel.SMART_CASUAL,
+            Season.SUMMER
+        );
+
+        var response = wardrobeService.updateWardrobeItem(userId, itemId, updateRequest);
+
+        assertThat(response.id()).isEqualTo(itemId);
+        assertThat(response.name()).isEqualTo("New Linen Shirt");
+        assertThat(response.primaryColor()).isEqualTo(Color.WHITE);
+        assertThat(response.secondaryColor()).isEqualTo(Color.BLUE);
+        assertThat(response.subcategory()).isEqualTo("LINEN");
+        assertThat(response.pattern()).isEqualTo(Pattern.STRIPED);
+        assertThat(response.formalityLevel()).isEqualTo(FormalityLevel.SMART_CASUAL);
+        assertThat(response.season()).isEqualTo(Season.SUMMER);
+        verify(wardrobeItemRepository).save(item);
+    }
+
+    @Test
+    @DisplayName("updateWardrobeItem: throws GroomAiException with ITEM_NOT_FOUND when not found or wrong owner")
+    void updateWardrobeItem_notFound_throwsException() {
+        UUID itemId = UUID.randomUUID();
+        when(wardrobeItemRepository.findByIdAndUserId(itemId, userId)).thenReturn(Optional.empty());
+
+        var updateRequest = new com.groomai.wardrobe.dto.UpdateWardrobeItemRequestDto(
+            "New Shirt",
+            Category.TOP,
+            null,
+            Color.WHITE,
+            null,
+            null,
+            null,
+            null
+        );
+
+        assertThatThrownBy(() -> wardrobeService.updateWardrobeItem(userId, itemId, updateRequest))
+            .isInstanceOf(com.groomai.common.exception.GroomAiException.class)
+            .hasMessageContaining("Wardrobe item not found");
+    }
+
+    @Test
+    @DisplayName("deleteWardrobeItem: enqueues storage key, deletes entity, and dispatches immediate eradication")
+    void deleteWardrobeItem_success() {
+        UUID itemId = UUID.randomUUID();
+        String storageKey = "wardrobe/" + userId + "/item-1.jpg";
+        WardrobeItem item = WardrobeItem.builder()
+            .id(itemId)
+            .user(user)
+            .name("Old Shirt")
+            .category(Category.TOP)
+            .primaryColor(Color.BLUE)
+            .storageKey(storageKey)
+            .status(ItemStatus.ACTIVE)
+            .build();
+
+        when(wardrobeItemRepository.findByIdAndUserId(itemId, userId)).thenReturn(Optional.of(item));
+
+        wardrobeService.deleteWardrobeItem(userId, itemId);
+
+        verify(storageDeletionOutboxService).enqueueDeletion(storageKey);
+        verify(wardrobeItemRepository).delete(item);
+        verify(storageDeletionOutboxService).dispatchImmediate(storageKey);
+    }
+
+    @Test
+    @DisplayName("deleteWardrobeItem: throws GroomAiException with ITEM_NOT_FOUND when not found or wrong owner")
+    void deleteWardrobeItem_notFound_throwsException() {
+        UUID itemId = UUID.randomUUID();
+        when(wardrobeItemRepository.findByIdAndUserId(itemId, userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> wardrobeService.deleteWardrobeItem(userId, itemId))
+            .isInstanceOf(com.groomai.common.exception.GroomAiException.class)
+            .hasMessageContaining("Wardrobe item not found");
+    }
+
+    @Test
+    @DisplayName("deleteWardrobeItem: cross-user deletion attempt fails with ITEM_NOT_FOUND and never triggers outbox or deletion")
+    void deleteWardrobeItem_crossUserAttempt_throwsNotFoundAndNeverEnqueues() {
+        UUID itemId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
+
+        when(wardrobeItemRepository.findByIdAndUserId(itemId, otherUserId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> wardrobeService.deleteWardrobeItem(otherUserId, itemId))
+            .isInstanceOf(com.groomai.common.exception.GroomAiException.class)
+            .hasMessageContaining("Wardrobe item not found");
+
+        verify(storageDeletionOutboxService, never()).enqueueDeletion(any());
+        verify(wardrobeItemRepository, never()).delete(any());
+        verify(storageDeletionOutboxService, never()).dispatchImmediate(any());
+    }
+
+    @Test
+    @DisplayName("updateWardrobeItem: cross-user update attempt fails with ITEM_NOT_FOUND and never mutates repository")
+    void updateWardrobeItem_crossUserAttempt_throwsNotFoundAndNeverSaves() {
+        UUID itemId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
+
+        when(wardrobeItemRepository.findByIdAndUserId(itemId, otherUserId)).thenReturn(Optional.empty());
+
+        com.groomai.wardrobe.dto.UpdateWardrobeItemRequestDto request = new com.groomai.wardrobe.dto.UpdateWardrobeItemRequestDto(
+            "Hacked Name",
+            Category.TOP,
+            "Hacked",
+            Color.BLACK,
+            null,
+            Pattern.SOLID,
+            FormalityLevel.FORMAL,
+            Season.WINTER
+        );
+
+        assertThatThrownBy(() -> wardrobeService.updateWardrobeItem(otherUserId, itemId, request))
+            .isInstanceOf(com.groomai.common.exception.GroomAiException.class)
+            .hasMessageContaining("Wardrobe item not found");
+
+        verify(wardrobeItemRepository, never()).save(any());
     }
 }

@@ -64,6 +64,17 @@ export interface CreateWardrobeItemPayload {
   readonly uploadTicket?: string | null;
 }
 
+export interface UpdateWardrobeItemPayload {
+  readonly name: string;
+  readonly category?: Category;
+  readonly subcategory?: string | null;
+  readonly primaryColor: Color;
+  readonly secondaryColor?: Color | null;
+  readonly pattern?: Pattern | null;
+  readonly formalityLevel?: FormalityLevel | null;
+  readonly season?: Season | null;
+}
+
 export interface WardrobeItemResponse {
   readonly id: string;
   readonly name: string;

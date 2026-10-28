@@ -40,6 +40,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -360,6 +361,124 @@ class WardrobeControllerTest {
         );
 
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/wardrobe/items/" + itemId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("ITEM_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("PUT /items/{id}: returns 200 with updated wardrobe item")
+    void updateWardrobeItem_success_returns200() throws Exception {
+        UUID itemId = UUID.randomUUID();
+        String storageKey = "wardrobe/" + userId + "/item-1.jpg";
+        var updateRequest = new com.groomai.wardrobe.dto.UpdateWardrobeItemRequestDto(
+            "Updated Linen Shirt",
+            Category.TOP,
+            "LINEN",
+            Color.WHITE,
+            Color.BLUE,
+            Pattern.STRIPED,
+            FormalityLevel.SMART_CASUAL,
+            Season.SUMMER
+        );
+
+        WardrobeItemResponseDto updated = new WardrobeItemResponseDto(
+            itemId,
+            "Updated Linen Shirt",
+            Category.TOP,
+            "LINEN",
+            Color.WHITE,
+            Color.BLUE,
+            Pattern.STRIPED,
+            FormalityLevel.SMART_CASUAL,
+            Season.SUMMER,
+            storageKey,
+            "http://localhost:8080/api/v1/storage/files/" + storageKey,
+            ItemStatus.ACTIVE,
+            Instant.now(),
+            Instant.now()
+        );
+
+        when(wardrobeService.updateWardrobeItem(eq(userId), eq(itemId), any())).thenReturn(updated);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/wardrobe/items/" + itemId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(itemId.toString()))
+            .andExpect(jsonPath("$.name").value("Updated Linen Shirt"))
+            .andExpect(jsonPath("$.primaryColor").value("WHITE"))
+            .andExpect(jsonPath("$.subcategory").value("LINEN"));
+    }
+
+    @Test
+    @DisplayName("PUT /items/{id}: validation failure on blank name returns 400 VALIDATION_FAILED")
+    void updateWardrobeItem_invalidPayload_returns400() throws Exception {
+        UUID itemId = UUID.randomUUID();
+        String invalidJson = """
+            {
+                "name": "",
+                "primaryColor": "NAVY"
+            }
+            """;
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/wardrobe/items/" + itemId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(invalidJson))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    @DisplayName("PUT /items/{id}: returns 404 when item does not exist or not owned by user")
+    void updateWardrobeItem_notFound_returns404() throws Exception {
+        UUID itemId = UUID.randomUUID();
+        var updateRequest = new com.groomai.wardrobe.dto.UpdateWardrobeItemRequestDto(
+            "Updated Shirt",
+            Category.TOP,
+            null,
+            Color.WHITE,
+            null,
+            null,
+            null,
+            null
+        );
+
+        when(wardrobeService.updateWardrobeItem(eq(userId), eq(itemId), any())).thenThrow(
+            new com.groomai.common.exception.GroomAiException("Item not found", org.springframework.http.HttpStatus.NOT_FOUND, "ITEM_NOT_FOUND")
+        );
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/wardrobe/items/" + itemId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("ITEM_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("DELETE /items/{id}: returns 204 No Content for owner")
+    void deleteWardrobeItem_success_returns204() throws Exception {
+        UUID itemId = UUID.randomUUID();
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/v1/wardrobe/items/" + itemId)
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNoContent());
+
+        verify(wardrobeService).deleteWardrobeItem(eq(userId), eq(itemId));
+    }
+
+    @Test
+    @DisplayName("DELETE /items/{id}: returns 404 when item does not exist or not owned by user")
+    void deleteWardrobeItem_notFound_returns404() throws Exception {
+        UUID itemId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(
+            new com.groomai.common.exception.GroomAiException("Item not found", org.springframework.http.HttpStatus.NOT_FOUND, "ITEM_NOT_FOUND")
+        ).when(wardrobeService).deleteWardrobeItem(eq(userId), eq(itemId));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/v1/wardrobe/items/" + itemId)
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.code").value("ITEM_NOT_FOUND"));

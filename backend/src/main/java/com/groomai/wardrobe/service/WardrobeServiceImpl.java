@@ -47,6 +47,7 @@ public class WardrobeServiceImpl implements WardrobeService {
     private final ObjectStorageService objectStorageService;
     private final WardrobeImageVerificationService wardrobeImageVerificationService;
     private final com.groomai.storage.UploadTicketService uploadTicketService;
+    private final com.groomai.storage.StorageDeletionOutboxService storageDeletionOutboxService;
 
     public WardrobeServiceImpl(
         UserProfileRepository userProfileRepository,
@@ -54,7 +55,8 @@ public class WardrobeServiceImpl implements WardrobeService {
         WardrobeItemRepository wardrobeItemRepository,
         ObjectStorageService objectStorageService,
         WardrobeImageVerificationService wardrobeImageVerificationService,
-        com.groomai.storage.UploadTicketService uploadTicketService
+        com.groomai.storage.UploadTicketService uploadTicketService,
+        com.groomai.storage.StorageDeletionOutboxService storageDeletionOutboxService
     ) {
         this.userProfileRepository = userProfileRepository;
         this.userRepository = userRepository;
@@ -62,6 +64,7 @@ public class WardrobeServiceImpl implements WardrobeService {
         this.objectStorageService = objectStorageService;
         this.wardrobeImageVerificationService = wardrobeImageVerificationService;
         this.uploadTicketService = uploadTicketService;
+        this.storageDeletionOutboxService = storageDeletionOutboxService;
     }
 
     @Override
@@ -203,5 +206,68 @@ public class WardrobeServiceImpl implements WardrobeService {
 
         String downloadUrl = objectStorageService.generateDownloadUrl(item.getStorageKey(), Duration.ofMinutes(15));
         return WardrobeItemResponseDto.fromEntity(item, downloadUrl);
+    }
+
+    @Override
+    @Transactional
+    public WardrobeItemResponseDto updateWardrobeItem(
+        UUID userId,
+        UUID itemId,
+        com.groomai.wardrobe.dto.UpdateWardrobeItemRequestDto request
+    ) {
+        WardrobeItem item = wardrobeItemRepository.findByIdAndUserId(itemId, userId)
+            .orElseThrow(() -> new GroomAiException(
+                "Wardrobe item not found: " + itemId,
+                HttpStatus.NOT_FOUND,
+                "ITEM_NOT_FOUND"
+            ));
+
+        item.setName(request.name().trim());
+        if (request.category() != null) {
+            item.setCategory(request.category());
+        }
+        item.setSubcategory(request.subcategory() != null && !request.subcategory().isBlank() ? request.subcategory().trim() : null);
+        item.setPrimaryColor(request.primaryColor());
+        item.setSecondaryColor(request.secondaryColor());
+        if (request.pattern() != null) {
+            item.setPattern(request.pattern());
+        }
+        if (request.formalityLevel() != null) {
+            item.setFormalityLevel(request.formalityLevel());
+        }
+        if (request.season() != null) {
+            item.setSeason(request.season());
+        }
+        item.setUpdatedAt(Instant.now());
+
+        WardrobeItem saved = wardrobeItemRepository.save(item);
+        log.info("Updated wardrobe item [{}] for user [{}]", itemId, userId);
+
+        String downloadUrl = objectStorageService.generateDownloadUrl(saved.getStorageKey(), Duration.ofMinutes(15));
+        return WardrobeItemResponseDto.fromEntity(saved, downloadUrl);
+    }
+
+    @Override
+    @Transactional
+    public void deleteWardrobeItem(UUID userId, UUID itemId) {
+        WardrobeItem item = wardrobeItemRepository.findByIdAndUserId(itemId, userId)
+            .orElseThrow(() -> new GroomAiException(
+                "Wardrobe item not found: " + itemId,
+                HttpStatus.NOT_FOUND,
+                "ITEM_NOT_FOUND"
+            ));
+
+        String storageKey = item.getStorageKey();
+
+        // 1. Enqueue storage key to storage_deletion_outbox within the same transaction
+        storageDeletionOutboxService.enqueueDeletion(storageKey);
+
+        // 2. Delete database entity
+        wardrobeItemRepository.delete(item);
+        log.info("Deleted wardrobe item [{}] for user [{}] and enqueued storage key [{}] for eradication",
+            itemId, userId, storageKey);
+
+        // 3. Trigger immediate best-effort eradication dispatch
+        storageDeletionOutboxService.dispatchImmediate(storageKey);
     }
 }
