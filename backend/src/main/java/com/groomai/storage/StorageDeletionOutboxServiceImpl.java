@@ -4,6 +4,7 @@ import com.groomai.storage.entity.StorageDeletionTask;
 import com.groomai.storage.repository.StorageDeletionTaskRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -49,6 +50,7 @@ public class StorageDeletionOutboxServiceImpl implements StorageDeletionOutboxSe
     private final ObjectStorageService objectStorageService;
     private final TransactionTemplate transactionTemplate;
 
+    @Autowired
     public StorageDeletionOutboxServiceImpl(
         StorageDeletionTaskRepository outboxRepository,
         ObjectStorageService objectStorageService,

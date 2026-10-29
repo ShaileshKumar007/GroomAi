@@ -83,7 +83,7 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Run TypeScript Strict Check
         run: npm run type-check
