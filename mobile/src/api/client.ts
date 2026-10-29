@@ -10,6 +10,7 @@ import {
 import {
   CreateWardrobeItemPayload,
   PagedResponse,
+  UpdateWardrobeItemPayload,
   UploadIntentRequestPayload,
   UploadIntentResponse,
   WardrobeItemResponse,
@@ -487,4 +488,66 @@ export async function apiGetWardrobeItemById(id: string): Promise<WardrobeItemRe
 
   const data: unknown = await response.json();
   return data as WardrobeItemResponse;
+}
+
+/**
+ * PUT /api/v1/wardrobe/items/{id}
+ * Updates editable metadata for an existing wardrobe item owned by the authenticated user.
+ */
+export async function apiUpdateWardrobeItem(
+  id: string,
+  payload: UpdateWardrobeItemPayload
+): Promise<WardrobeItemResponse> {
+  const response = await authenticatedFetch(`/wardrobe/items/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let errorCode = 'UNKNOWN';
+    let errorMessage = `Failed to update wardrobe item with status ${response.status}`;
+    try {
+      const data: unknown = await response.json();
+      if (data && typeof data === 'object') {
+        const errorPayload = data as ApiErrorResponse;
+        if (errorPayload.code) errorCode = errorPayload.code;
+        if (errorPayload.message) errorMessage = errorPayload.message;
+      }
+    } catch {
+      // Non-JSON fallback
+    }
+    throw new ApiError(errorMessage, errorCode, response.status);
+  }
+
+  const data: unknown = await response.json();
+  return data as WardrobeItemResponse;
+}
+
+/**
+ * DELETE /api/v1/wardrobe/items/{id}
+ * Deletes a wardrobe item owned by the authenticated user and enqueues its storage key for eradication.
+ */
+export async function apiDeleteWardrobeItem(id: string): Promise<void> {
+  const response = await authenticatedFetch(`/wardrobe/items/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    let errorCode = 'UNKNOWN';
+    let errorMessage = `Failed to delete wardrobe item with status ${response.status}`;
+    try {
+      const data: unknown = await response.json();
+      if (data && typeof data === 'object') {
+        const errorPayload = data as ApiErrorResponse;
+        if (errorPayload.code) errorCode = errorPayload.code;
+        if (errorPayload.message) errorMessage = errorPayload.message;
+      }
+    } catch {
+      // Non-JSON fallback
+    }
+    throw new ApiError(errorMessage, errorCode, response.status);
+  }
 }

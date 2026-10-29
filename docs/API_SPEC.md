@@ -402,6 +402,7 @@ List endpoints support pagination:
   ```json
   {
     "name": "Navy Linen Shirt",
+    "category": "TOP",
     "subcategory": "BUTTON_DOWN",
     "primaryColor": "NAVY",
     "secondaryColor": null,

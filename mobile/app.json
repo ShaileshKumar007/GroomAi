@@ -29,7 +29,9 @@
           "photosPermission": "The app accesses your photos to catalog clothes in your digital wardrobe.",
           "cameraPermission": "The app uses your camera to photograph clothing items for your digital wardrobe."
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true

@@ -57,4 +57,27 @@ public interface WardrobeService {
      * @return WardrobeItemResponseDto with ephemeral download URL
      */
     WardrobeItemResponseDto getWardrobeItem(UUID userId, UUID itemId);
+
+    /**
+     * Updates an existing wardrobe item's mutable metadata, enforcing tenant isolation.
+     *
+     * @param userId authenticated user ID
+     * @param itemId wardrobe item ID
+     * @param request updated item metadata
+     * @return updated WardrobeItemResponseDto with ephemeral download URL
+     */
+    WardrobeItemResponseDto updateWardrobeItem(
+        UUID userId,
+        UUID itemId,
+        com.groomai.wardrobe.dto.UpdateWardrobeItemRequestDto request
+    );
+
+    /**
+     * Deletes a wardrobe item, enforcing tenant isolation, and enqueues its storage key
+     * to storage_deletion_outbox in the same transaction for durable eradication.
+     *
+     * @param userId authenticated user ID
+     * @param itemId wardrobe item ID
+     */
+    void deleteWardrobeItem(UUID userId, UUID itemId);
 }

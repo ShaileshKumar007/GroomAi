@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { useWardrobeCatalog } from '../../src/hooks/useWardrobeCatalog';
 import { AuthenticatedImage } from '../../src/components/AuthenticatedImage';
@@ -53,6 +53,19 @@ export default function WardrobeCatalogScreen(): React.JSX.Element {
     refreshCatalog,
     retryLoading,
   } = useWardrobeCatalog();
+
+  const isFirstFocus = useRef<boolean>(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstFocus.current) {
+        isFirstFocus.current = false;
+        return;
+      }
+      if (isAuthenticated && user) {
+        void refreshCatalog();
+      }
+    }, [isAuthenticated, user, refreshCatalog])
+  );
 
   // Unauthenticated guard
   if (!isAuthenticated || !user) {

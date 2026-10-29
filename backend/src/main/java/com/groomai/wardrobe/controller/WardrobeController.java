@@ -84,4 +84,30 @@ public class WardrobeController {
         WardrobeItemResponseDto response = wardrobeService.getWardrobeItem(principal.id(), id);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * Updates an existing wardrobe item's editable metadata matching docs/API_SPEC.md Section 4.5.
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/items/{id}")
+    public ResponseEntity<WardrobeItemResponseDto> updateWardrobeItem(
+        @AuthenticationPrincipal UserPrincipal principal,
+        @org.springframework.web.bind.annotation.PathVariable java.util.UUID id,
+        @Valid @RequestBody com.groomai.wardrobe.dto.UpdateWardrobeItemRequestDto request
+    ) {
+        WardrobeItemResponseDto response = wardrobeService.updateWardrobeItem(principal.id(), id, request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Deletes a wardrobe item and enqueues its storage key for eradication matching docs/API_SPEC.md Section 4.6.
+     */
+    @org.springframework.web.bind.annotation.DeleteMapping("/items/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public ResponseEntity<Void> deleteWardrobeItem(
+        @AuthenticationPrincipal UserPrincipal principal,
+        @org.springframework.web.bind.annotation.PathVariable java.util.UUID id
+    ) {
+        wardrobeService.deleteWardrobeItem(principal.id(), id);
+        return ResponseEntity.noContent().build();
+    }
 }

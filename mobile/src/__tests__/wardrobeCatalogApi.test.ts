@@ -1,10 +1,12 @@
 import {
   apiGetWardrobeItems,
   apiGetWardrobeItemById,
+  apiUpdateWardrobeItem,
+  apiDeleteWardrobeItem,
   ApiError,
 } from '../api/client';
 import * as storage from '../utils/storage';
-import { WardrobeItemResponse, PagedResponse } from '../types/wardrobe.types';
+import { WardrobeItemResponse, PagedResponse, UpdateWardrobeItemPayload } from '../types/wardrobe.types';
 
 // Mock react-native
 jest.mock('react-native', () => ({
@@ -214,6 +216,155 @@ describe('Wardrobe Catalog API Client', () => {
         expect(apiErr.code).toBe('ITEM_NOT_FOUND');
         expect(apiErr.message).toBe('Wardrobe item not found.');
       }
+    });
+  });
+
+  describe('apiUpdateWardrobeItem', () => {
+    const updatePayload: UpdateWardrobeItemPayload = {
+      name: 'Updated Oxford Shirt',
+      category: 'TOP',
+      subcategory: 'CASUAL_SHIRT',
+      primaryColor: 'BLUE',
+      secondaryColor: 'WHITE',
+      pattern: 'STRIPED',
+      formalityLevel: 'CASUAL',
+      season: 'SUMMER',
+    };
+
+    it('successfully updates item metadata via PUT request', async () => {
+      let requestedUrl = '';
+      let requestedMethod = '';
+      let requestedBody = '';
+      let authHeader = '';
+
+      const updatedItem: WardrobeItemResponse = {
+        ...mockItem,
+        name: updatePayload.name,
+        subcategory: updatePayload.subcategory ?? null,
+        primaryColor: updatePayload.primaryColor,
+        secondaryColor: updatePayload.secondaryColor ?? null,
+        pattern: updatePayload.pattern!,
+        formalityLevel: updatePayload.formalityLevel!,
+        season: updatePayload.season!,
+        updatedAt: '2026-10-27T12:00:00Z',
+      };
+
+      global.fetch = jest.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        requestedUrl = url;
+        requestedMethod = init?.method ?? '';
+        requestedBody = init?.body as string;
+        const headers = init?.headers as Headers | undefined;
+        authHeader = headers?.get('Authorization') ?? '';
+        return {
+          ok: true,
+          status: 200,
+          json: async () => updatedItem,
+        } as Response;
+      });
+
+      const response = await apiUpdateWardrobeItem(mockItem.id, updatePayload);
+
+      expect(requestedUrl).toContain(`/wardrobe/items/${mockItem.id}`);
+      expect(requestedMethod).toBe('PUT');
+      expect(authHeader).toBe('Bearer valid-test-access-token');
+      expect(JSON.parse(requestedBody)).toEqual(updatePayload);
+      expect(response.name).toBe('Updated Oxford Shirt');
+      expect(response.pattern).toBe('STRIPED');
+      expect(response.season).toBe('SUMMER');
+    });
+
+    it('throws ApiError on 400 validation error', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          timestamp: '2026-10-27T00:00:00Z',
+          status: 400,
+          error: 'Bad Request',
+          code: 'VALIDATION_FAILED',
+          message: 'Item name must be between 2 and 100 characters.',
+        }),
+      } as Response);
+
+      await expect(
+        apiUpdateWardrobeItem(mockItem.id, { ...updatePayload, name: 'A' })
+      ).rejects.toThrow(ApiError);
+    });
+
+    it('throws ApiError on 404 item not found or cross-user attempt', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({
+          timestamp: '2026-10-27T00:00:00Z',
+          status: 404,
+          error: 'Not Found',
+          code: 'ITEM_NOT_FOUND',
+          message: 'Wardrobe item not found.',
+        }),
+      } as Response);
+
+      await expect(
+        apiUpdateWardrobeItem('unowned-item-id', updatePayload)
+      ).rejects.toThrow(ApiError);
+    });
+  });
+
+  describe('apiDeleteWardrobeItem', () => {
+    it('successfully deletes item via DELETE request returning 204 No Content', async () => {
+      let requestedUrl = '';
+      let requestedMethod = '';
+      let authHeader = '';
+
+      global.fetch = jest.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        requestedUrl = url;
+        requestedMethod = init?.method ?? '';
+        const headers = init?.headers as Headers | undefined;
+        authHeader = headers?.get('Authorization') ?? '';
+        return {
+          ok: true,
+          status: 204,
+          text: async () => '',
+        } as Response;
+      });
+
+      await expect(apiDeleteWardrobeItem(mockItem.id)).resolves.toBeUndefined();
+
+      expect(requestedUrl).toContain(`/wardrobe/items/${mockItem.id}`);
+      expect(requestedMethod).toBe('DELETE');
+      expect(authHeader).toBe('Bearer valid-test-access-token');
+    });
+
+    it('throws ApiError on 404 when deleting missing or unowned item', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({
+          timestamp: '2026-10-27T00:00:00Z',
+          status: 404,
+          error: 'Not Found',
+          code: 'ITEM_NOT_FOUND',
+          message: 'Wardrobe item not found.',
+        }),
+      } as Response);
+
+      await expect(apiDeleteWardrobeItem('unowned-item-id')).rejects.toThrow(ApiError);
+    });
+
+    it('throws ApiError on 500 internal server error', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({
+          timestamp: '2026-10-27T00:00:00Z',
+          status: 500,
+          error: 'Internal Server Error',
+          code: 'STORAGE_ERROR',
+          message: 'Failed to process storage deletion outbox task.',
+        }),
+      } as Response);
+
+      await expect(apiDeleteWardrobeItem(mockItem.id)).rejects.toThrow(ApiError);
     });
   });
 });
