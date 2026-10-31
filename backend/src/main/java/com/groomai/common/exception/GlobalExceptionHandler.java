@@ -25,6 +25,25 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(com.groomai.outfit.exception.InsufficientWardrobeItemsException.class)
+    public ResponseEntity<ErrorResponse> handleInsufficientWardrobeItemsException(
+        com.groomai.outfit.exception.InsufficientWardrobeItemsException ex,
+        HttpServletRequest request
+    ) {
+        log.warn("Insufficient wardrobe items: {}", ex.getMissingCategories());
+        ErrorResponse errorResponse = new ErrorResponse(
+            Instant.now(),
+            ex.getHttpStatus().value(),
+            ex.getHttpStatus().getReasonPhrase(),
+            ex.getErrorCode(),
+            ex.getMessage(),
+            request.getRequestURI(),
+            null,
+            ex.getMissingCategories()
+        );
+        return ResponseEntity.status(ex.getHttpStatus()).body(errorResponse);
+    }
+
     @ExceptionHandler(GroomAiException.class)
     public ResponseEntity<ErrorResponse> handleGroomAiException(GroomAiException ex, HttpServletRequest request) {
         log.warn("Domain exception [{}]: {}", ex.getErrorCode(), ex.getMessage());

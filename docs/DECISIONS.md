@@ -346,3 +346,53 @@
   - *Positive:* Daily user utility and high retention; zero AI item hallucination; sub-second deterministic outfit scoring before AI rationale; privacy guaranteed through dual consent; seamless local offline development.
   - *Negative:* Users must catalog at least a minimal wardrobe (Top, Bottom, Shoes) before receiving recommendations; backend must maintain deterministic styling rules and color harmony matrices.
 
+---
+
+### ADR-0009: Deterministic Outfit Generation Engine, Scoring Formula, and Missing-Data Policy
+
+- **Status:** **Accepted Baseline** (Stage 4A Architecture Design)
+- **Date:** October 2026
+- **Context:**
+  Groom.ai promises confident, personalized outfit recommendations from the user's existing wardrobe. Relying solely on hosted LLMs for combinatorial generation is slow (15–30s), expensive, prone to hallucinating unowned items, and non-deterministic. A high-performance, explainable, and testable recommendation system requires a deterministic backend engine in Java that validates, scores, and ranks combinations before any optional AI styling rationale is generated.
+
+- **Decision:**
+  1. **Slot Grammar, Cardinality & Outerwear Anti-Duplication (Approved Decision #1):**
+     - Core required slots: Exactly 1 `TOP` + 1 `BOTTOM` + 1 `FOOTWEAR`.
+     - Optional outerwear: 0 or 1 `OUTERWEAR` evaluated dynamically only when weather is `COOL`/`COLD`/`RAINY`/`SNOWY` or occasion calls for tailored layering (e.g. blazer for `BUSINESS_CASUAL`).
+     - **Anti-Duplication Rule:** Trivial layered and unlayered duplicates of the same core outfit are strictly prohibited. When outerwear is selected, the layered outfit replaces the unlayered candidate if its score is higher or equal; it is never emitted as a duplicate recommendation.
+     - Optional accessory: 0 or 1 `ACCESSORY` (deferred in initial tuple search).
+  2. **Configurable Result Limits (Approved Decision #2):**
+     - Default result count: Returns 3 outfit recommendations by default.
+     - Supports a configurable `limit` parameter from 1 to 10 (`@Min(1) @Max(10)`), strictly enforced by the backend.
+  3. **Missing-Data & Wear History Policy (Approved Decision #3):**
+     - Hard precondition: Active wardrobe must contain $\ge 1$ Top, $\ge 1$ Bottom, and $\ge 1$ Footwear. If incomplete, the endpoint returns **HTTP `422 Unprocessable Entity`** with `code: "INSUFFICIENT_WARDROBE_ITEMS"` and a `missingCategories` array.
+     - When active wardrobe has sufficient items but no combinations meet occasion/weather constraints, returns **HTTP `200 OK`** with `"outfits": []` and a descriptive warning.
+     - **Missing Wear History Fallback:** When `outfit_wear_logs` is empty or unpopulated, $P_{\text{wear}} = 0$. The engine never infers or invents wear dates.
+     - Missing style preferences fall back to a neutral 7-point baseline without penalty.
+  4. **Weather Integration & Honest Explanations (Approved Decision #4 & #5):**
+     - Zero external weather service provider integration in MVP. Weather context is strictly user-supplied (`temperatureBracket`, `weatherCondition`) or omitted.
+     - When weather context is omitted, the engine evaluates compatibility strictly on garment seasonality and explicitly states: *"Weather context was not supplied; evaluated based on garment seasonality only."* It never claims an outfit is weather-appropriate when weather is unknown.
+  5. **Inspectable Composite Scoring Model ($0\text{--}100$):**
+     $$\text{Base Score} = S_{\text{color}} (0\text{--}30) + S_{\text{formality}} (0\text{--}25) + S_{\text{season\_weather}} (0\text{--}20) + S_{\text{pattern}} (0\text{--}15) + S_{\text{pref}} (0\text{--}10)$$
+     $$\text{Deductions} = P_{\text{wear}} (0\text{--}20)$$
+     $$\text{Suitability Score} = \text{clamp}(0, 100, \; \text{Base Score} - P_{\text{wear}})$$
+     - Maximum base score is exactly 100 ($30 + 25 + 20 + 15 + 10$). The suitability score is guaranteed to equal the sum of positive sub-scores minus $P_{\text{wear}}$, clamped to $[0, 100]$.
+     - **Color Harmony ($0\text{--}30$):** Neutral anchors ($28\text{--}30$), single accent ($26\text{--}30$), monochromatic ($25$), saturated clash penalty ($-10\text{ to } -15$).
+     - **Formality Alignment ($0\text{--}25$):** Delta $\Delta_F = 0$ ($25$), $\Delta_F = 1$ ($20$), $\Delta_F = 2$ ($8$). Hard rejection at $\Delta_F \ge 3$.
+     - **Unified Season & Weather ($0\text{--}20$):** All-season ($20$), adjacent season ($18$). User-supplied cold/hot modulation avoids double-counting. Hard rejection on Summer/Winter collisions.
+     - **Pattern Restraint ($0\text{--}15$):** Solid dominance ($15$), Rule of One Pattern ($14$). Loud dual-pattern clash penalty ($-12$).
+     - **User Preferences ($0\text{--}10$):** Color preference bonus ($+5$), avoided color penalty ($-6$), default formality ($+3$), fallback ($7$).
+     - **Wear Deductions ($0\text{--}20$):** Decay penalty ($-20$ today, $-12$ recent, $-5$ within 7 days); $0$ deduction when wear history is absent.
+  6. **Pre-Filtering & Bounded Heap Complexity:**
+     - Prunes category pools by occasion and weather bounds prior to Cartesian product generation.
+     - Maintains top $K$ outfits ($K = \text{limit}$, default 3) using a bounded min-heap priority queue ($O(K)$ space) ordering the minimum score at the head.
+     - Execution time $< 10\text{ ms}$ for standard wardrobes; $< 50\text{ ms}$ for 500-item wardrobes, meeting NFR-002 ($< 100\text{ ms}$).
+  7. **Deterministic Tie-Breaking:**
+     - Broken in order: (1) least recently worn, (2) higher color harmony score, (3) lower formality delta, (4) stable item UUID ordering. Guarantees 100% reproducible results for identical inputs.
+  8. **Consent Decoupling:**
+     - Deterministic outfit generation functions fully without `ai_styling_consent_granted`. When consent is absent or revoked, the endpoint returns deterministic candidates with structured rule-based explanations (`aiStylingAvailable: false`). No wardrobe data or imagery is transmitted to third-party AI providers.
+
+- **Consequences:**
+  - *Positive:* Instantaneous sub-10ms response times; zero unowned item hallucinations; completely unit-testable scoring logic; privacy-preserving offline functionality; clear explainability for users.
+  - *Negative:* Users must catalog at least 3 core garments (Top, Bottom, Footwear) before receiving recommendations; rule heuristics require ongoing evaluation and tuning against user feedback.
+

@@ -154,8 +154,8 @@ journey
 | **FR-WARD-010** | Wardrobe | Lightweight Item Model | System shall record item: `name`, `category` (TOP, BOTTOM, FOOTWEAR, OUTERWEAR, ACCESSORY), `primaryColor`, `formalityLevel`, `pattern`, `subcategory`, `secondaryColor`, `season`. | P0 |
 | **FR-WARD-011** | Wardrobe | Catalog Browsing & Filter | Users shall be able to browse wardrobe items with filters by category, formality, season, and color. | P0 |
 | **FR-WARD-012** | Wardrobe | Item Edit & Deletion | Users shall be able to update item details or delete an item; deletion enqueues its storage key into `storage_deletion_outbox`. | P0 |
-| **FR-OUTFIT-013** | Outfit | Deterministic Outfit Generator | System shall evaluate user's wardrobe to generate valid outfits satisfying completeness (1 Top + 1 Bottom + 1 Footwear [+ Outerwear/Accessory]), formality, weather, and color harmony. | P0 |
-| **FR-OUTFIT-014** | Outfit | AI Styling Rationale | Backend shall invoke multimodal AI with candidate outfit items to generate natural-language styling advice ("Why this works", tuck/layering tips); strictly zero hallucination of unowned items. | P0 |
+| **FR-OUTFIT-013** | Outfit | Deterministic Outfit Generator | System shall evaluate user's active wardrobe to generate valid outfits satisfying completeness (1 Top + 1 Bottom + 1 Footwear [+ Outerwear/Accessory]), formality, weather, and color harmony (< 100ms). Operates without AI consent. (See `docs/OUTFIT_GENERATION_DESIGN.md`). | P0 |
+| **FR-OUTFIT-014** | Outfit | AI Styling Rationale | Backend shall invoke multimodal AI with candidate outfit items to generate natural-language styling advice ("Why this works", tuck/layering tips) only when AI styling consent is granted; strictly zero hallucination of unowned items. | P0 |
 | **FR-OUTFIT-015** | Outfit | Weather & Occasion Input | Users shall specify occasion (`CASUAL`, `SMART_CASUAL`, `BUSINESS_CASUAL`, `CORPORATE_FORMAL`, `DATE_NIGHT`, etc.) and weather conditions to guide recommendations. | P0 |
 | **FR-WEAR-016** | History | Wear Logging | Users shall be able to log an outfit as worn on a specific date. | P0 |
 | **FR-WEAR-017** | History | Repetition Prevention | Outfit recommendation engine shall apply a scoring penalty to items worn within the past 3–7 days. | P0 |
@@ -195,20 +195,29 @@ journey
     And the item is stored with status "ACTIVE" and appears in my Tops catalog
   ```
 
-### US-003: Daily Outfit Recommendation with AI Rationale
+### US-003: Daily Outfit Recommendation with Explainable Rationale
 - **As a** user deciding what to wear,  
 - **I want to** select my occasion and today's weather and receive complete outfits made from my own clothes,  
 - **So that** I look great and understand why the outfit works.
 - **Acceptance Criteria (Gherkin):**
   ```gherkin
-  Scenario: Receiving outfit recommendations
+  Scenario: Receiving outfit recommendations with AI styling consent
     Given I have at least 1 Top, 1 Bottom, and 1 pair of Shoes in my wardrobe
     And I have granted AI styling consent
     When I request recommendations for occasion "Business Casual" and weather "Mild / Sunny"
-    Then the backend deterministic engine filters and scores valid combinations from my owned items
+    Then the backend deterministic engine filters and scores valid combinations from my owned items in < 100ms
     And the multimodal AI generates a styling rationale explaining color harmony and layering tips
     And the app displays 2–3 complete outfits containing only items I own
     And zero unowned or hallucinated items are recommended
+
+  Scenario: Receiving outfit recommendations without AI styling consent
+    Given I have at least 1 Top, 1 Bottom, and 1 pair of Shoes in my wardrobe
+    And I have NOT granted AI styling consent (or revoked it)
+    When I request recommendations for occasion "Casual"
+    Then the backend deterministic engine generates, scores, and ranks combinations from my owned items
+    And no wardrobe data or images are sent to any external AI provider
+    And the response includes structured deterministic explanations and score breakdowns
+    And the app renders the recommended outfits without error
   ```
 
 ### US-004: Outfit Wear Logging & Repetition Prevention

@@ -16,6 +16,15 @@ import {
   WardrobeItemResponse,
   WardrobeListParams,
 } from '../types/wardrobe.types';
+import {
+  GenerateOutfitRequestPayload,
+  GenerateOutfitResponseDto,
+  LogOutfitWearPayload,
+  LogOutfitWearResponseDto,
+  OutfitWearHistoryDto,
+  SaveOutfitRequestPayload,
+  SavedOutfitResponseDto,
+} from '../types/outfit.types';
 import * as FileSystem from 'expo-file-system/legacy';
 import { clearStoredTokens, getStoredTokens, saveStoredTokens } from '../utils/storage';
 
@@ -550,4 +559,237 @@ export async function apiDeleteWardrobeItem(id: string): Promise<void> {
     }
     throw new ApiError(errorMessage, errorCode, response.status);
   }
+}
+
+/**
+ * POST /api/v1/outfits/generate
+ * Generates deterministic outfit recommendations from the authenticated user's active wardrobe.
+ */
+export async function apiGenerateOutfits(
+  payload: GenerateOutfitRequestPayload
+): Promise<GenerateOutfitResponseDto> {
+  const requestBody: Record<string, unknown> = {};
+  if (payload.occasion) {
+    requestBody.occasion = payload.occasion;
+  }
+  if (payload.temperatureBracket) {
+    requestBody.temperatureBracket = payload.temperatureBracket;
+  }
+  if (payload.weatherCondition) {
+    requestBody.weatherCondition = payload.weatherCondition;
+  }
+  if (payload.limit !== undefined) {
+    requestBody.limit = payload.limit;
+  }
+
+  const response = await authenticatedFetch('/outfits/generate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    let errorCode = 'UNKNOWN';
+    let errorMessage = `Failed to generate outfits with status ${response.status}`;
+    let missingCategories: readonly string[] | undefined = undefined;
+
+    try {
+      const data: unknown = await response.json();
+      if (data && typeof data === 'object') {
+        const errorPayload = data as ApiErrorResponse;
+        if (errorPayload.code) errorCode = errorPayload.code;
+        if (errorPayload.message) errorMessage = errorPayload.message;
+        if (errorPayload.missingCategories) {
+          missingCategories = errorPayload.missingCategories;
+        }
+      }
+    } catch {
+      // Non-JSON fallback
+    }
+
+    throw new ApiError(errorMessage, errorCode, response.status, missingCategories);
+  }
+
+  const data: unknown = await response.json();
+  return data as GenerateOutfitResponseDto;
+}
+
+/**
+ * POST /api/v1/outfits
+ * Persists a selected outfit recommendation to the database.
+ */
+export async function apiSaveOutfit(
+  payload: SaveOutfitRequestPayload
+): Promise<SavedOutfitResponseDto> {
+  const response = await authenticatedFetch('/outfits', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let errorCode = 'UNKNOWN';
+    let errorMessage = `Failed to save outfit with status ${response.status}`;
+    try {
+      const data: unknown = await response.json();
+      if (data && typeof data === 'object') {
+        const errorPayload = data as ApiErrorResponse;
+        if (errorPayload.code) errorCode = errorPayload.code;
+        if (errorPayload.message) errorMessage = errorPayload.message;
+      }
+    } catch {
+      // Non-JSON fallback
+    }
+    throw new ApiError(errorMessage, errorCode, response.status);
+  }
+
+  const data: unknown = await response.json();
+  return data as SavedOutfitResponseDto;
+}
+
+/**
+ * GET /api/v1/outfits
+ * Retrieves paginated list of saved outfits for the authenticated user.
+ */
+export async function apiGetSavedOutfits(
+  params?: { page?: number; size?: number }
+): Promise<PagedResponse<SavedOutfitResponseDto>> {
+  const queryParams = new URLSearchParams();
+  if (params?.page !== undefined) queryParams.append('page', String(params.page));
+  if (params?.size !== undefined) queryParams.append('size', String(params.size));
+
+  const query = queryParams.toString();
+  const endpoint = query ? `/outfits?${query}` : '/outfits';
+
+  const response = await authenticatedFetch(endpoint, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    let errorCode = 'UNKNOWN';
+    let errorMessage = `Failed to fetch saved outfits with status ${response.status}`;
+    try {
+      const data: unknown = await response.json();
+      if (data && typeof data === 'object') {
+        const errorPayload = data as ApiErrorResponse;
+        if (errorPayload.code) errorCode = errorPayload.code;
+        if (errorPayload.message) errorMessage = errorPayload.message;
+      }
+    } catch {
+      // Non-JSON fallback
+    }
+    throw new ApiError(errorMessage, errorCode, response.status);
+  }
+
+  const data: unknown = await response.json();
+  return data as PagedResponse<SavedOutfitResponseDto>;
+}
+
+/**
+ * GET /api/v1/outfits/{id}
+ * Retrieves a single saved outfit by ID.
+ */
+export async function apiGetSavedOutfitById(
+  id: string
+): Promise<SavedOutfitResponseDto> {
+  const response = await authenticatedFetch(`/outfits/${id}`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    let errorCode = 'UNKNOWN';
+    let errorMessage = `Failed to fetch saved outfit with status ${response.status}`;
+    try {
+      const data: unknown = await response.json();
+      if (data && typeof data === 'object') {
+        const errorPayload = data as ApiErrorResponse;
+        if (errorPayload.code) errorCode = errorPayload.code;
+        if (errorPayload.message) errorMessage = errorPayload.message;
+      }
+    } catch {
+      // Non-JSON fallback
+    }
+    throw new ApiError(errorMessage, errorCode, response.status);
+  }
+
+  const data: unknown = await response.json();
+  return data as SavedOutfitResponseDto;
+}
+
+/**
+ * POST /api/v1/outfits/{id}/wear
+ * Logs an outfit wear event on a specific date.
+ */
+export async function apiLogOutfitWear(
+  outfitId: string,
+  payload?: LogOutfitWearPayload
+): Promise<LogOutfitWearResponseDto> {
+  const response = await authenticatedFetch(`/outfits/${outfitId}/wear`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload || {}),
+  });
+
+  if (!response.ok) {
+    let errorCode = 'UNKNOWN';
+    let errorMessage = `Failed to log outfit wear with status ${response.status}`;
+    try {
+      const data: unknown = await response.json();
+      if (data && typeof data === 'object') {
+        const errorPayload = data as ApiErrorResponse;
+        if (errorPayload.code) errorCode = errorPayload.code;
+        if (errorPayload.message) errorMessage = errorPayload.message;
+      }
+    } catch {
+      // Non-JSON fallback
+    }
+    throw new ApiError(errorMessage, errorCode, response.status);
+  }
+
+  const data: unknown = await response.json();
+  return data as LogOutfitWearResponseDto;
+}
+
+/**
+ * GET /api/v1/outfits/wear-history
+ * Retrieves paginated list of historical wear events for the authenticated user.
+ */
+export async function apiGetWearHistory(
+  params?: { page?: number; size?: number }
+): Promise<PagedResponse<OutfitWearHistoryDto>> {
+  const queryParams = new URLSearchParams();
+  if (params?.page !== undefined) queryParams.append('page', String(params.page));
+  if (params?.size !== undefined) queryParams.append('size', String(params.size));
+
+  const query = queryParams.toString();
+  const endpoint = query ? `/outfits/wear-history?${query}` : '/outfits/wear-history';
+
+  const response = await authenticatedFetch(endpoint, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    let errorCode = 'UNKNOWN';
+    let errorMessage = `Failed to fetch wear history with status ${response.status}`;
+    try {
+      const data: unknown = await response.json();
+      if (data && typeof data === 'object') {
+        const errorPayload = data as ApiErrorResponse;
+        if (errorPayload.code) errorCode = errorPayload.code;
+        if (errorPayload.message) errorMessage = errorPayload.message;
+      }
+    } catch {
+      // Non-JSON fallback
+    }
+    throw new ApiError(errorMessage, errorCode, response.status);
+  }
+
+  const data: unknown = await response.json();
+  return data as PagedResponse<OutfitWearHistoryDto>;
 }

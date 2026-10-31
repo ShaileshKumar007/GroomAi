@@ -227,12 +227,21 @@ export default function WardrobeCatalogScreen(): React.JSX.Element {
               <Text style={styles.listHeaderCount}>
                 {totalElements} {totalElements === 1 ? 'item' : 'items'}
               </Text>
-              <TouchableOpacity
-                style={styles.addInlineButton}
-                onPress={() => router.push('/wardrobe/add')}
-              >
-                <Text style={styles.addInlineButtonText}>+ Add Item</Text>
-              </TouchableOpacity>
+              <View style={styles.headerButtonRow}>
+                <TouchableOpacity
+                  style={styles.styleInlineButton}
+                  onPress={() => router.push('/outfits')}
+                  testID="wardrobe-style-outfits-btn"
+                >
+                  <Text style={styles.styleInlineButtonText}>✨ Style</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.addInlineButton}
+                  onPress={() => router.push('/wardrobe/add')}
+                >
+                  <Text style={styles.addInlineButtonText}>+ Add Item</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           }
         />
@@ -309,6 +318,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#94A3B8',
+  },
+  headerButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  styleInlineButton: {
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  styleInlineButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   addInlineButton: {
     backgroundColor: '#F59E0B',

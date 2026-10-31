@@ -432,70 +432,162 @@ List endpoints support pagination:
 ### 5.1 Generate Outfit Recommendations (Two-Stage Hybrid Engine)
 - **Method & Path:** `POST /api/v1/outfits/generate`
 - **Authentication:** Bearer Token
-- **Prerequisite:** Minimum 1 Top, 1 Bottom, and 1 Footwear in the active wardrobe. AI styling consent is required only for sending wardrobe data to the hosted AI provider and generating AI-written rationale; without it, deterministic candidates remain available and AI rationale is omitted.
+- **Prerequisite:** Minimum 1 Top, 1 Bottom, and 1 Footwear in the active wardrobe. Operates independently of AI styling consent: deterministic candidate outfits with rule-based explanations are returned even if AI styling consent is not granted.
 - **Request Body:**
   ```json
   {
-    "occasion": "BUSINESS_CASUAL",
-    "weather": {
-      "temperatureBracket": "MILD",
-      "condition": "SUNNY"
-    }
+    "occasion": "SMART_CASUAL",
+    "temperatureBracket": "MILD",
+    "weatherCondition": "SUNNY",
+    "limit": 3
   }
   ```
+  - `occasion` (Optional): `CASUAL`, `SMART_CASUAL`, `BUSINESS_CASUAL`, `FORMAL`, `DATE_NIGHT`, `LOUNGEWEAR`, `ATHLETIC`.
+  - `temperatureBracket` (Optional): `HOT`, `WARM`, `MILD`, `COOL`, `COLD` (User-supplied).
+  - `weatherCondition` (Optional): `SUNNY`, `RAINY`, `WINDY`, `SNOWY` (User-supplied).
+  - `limit` (Optional, integer): Default `3`, min `1`, max `10`.
 - **Responses:**
   - `200 OK`:
     ```json
     {
       "outfits": [
         {
-          "id": "outfit-9988-7766",
-          "occasion": "BUSINESS_CASUAL",
-          "suitabilityScore": 95,
-          "stylingRationale": "The navy oxford button-down pairs cleanly with the beige chinos, creating a classic high-contrast smart casual base. Brown loafers ground the look with professional polish.",
-          "stylingTips": "Leave the top button undone and tuck the shirt with a matching brown belt for clean lines.",
+          "id": "e64c4328-0620-405b-97a9-22e84c77cb69",
+          "occasion": "SMART_CASUAL",
+          "suitabilityScore": 92,
+          "aiStylingAvailable": false,
+          "stylingRationale": "Navy and Beige create a timeless, versatile contrast anchored by rich Brown footwear. All garments align uniformly at the Smart Casual tier. Weather context was not supplied; evaluated based on garment seasonality only.",
+          "stylingTips": "Leave the top button undone and pair with a matching brown belt.",
+          "scoreBreakdown": {
+            "colorHarmony": 28,
+            "formalityAlignment": 25,
+            "seasonWeatherCompatibility": 20,
+            "patternRestraint": 14,
+            "preferenceMatch": 5,
+            "wearPenalty": 0
+          },
           "items": [
             {
               "role": "TOP",
-              "id": "item-1111",
+              "id": "11111111-1111-1111-1111-111111111111",
               "name": "Navy Oxford Button-Down",
               "category": "TOP",
               "primaryColor": "NAVY",
-              "downloadUrl": "https://..."
+              "secondaryColor": null,
+              "pattern": "SOLID",
+              "formalityLevel": "SMART_CASUAL",
+              "season": "ALL_SEASON",
+              "downloadUrl": "https://storage.groomai.com/wardrobe/user-1/navy_oxford.jpg?X-Amz-Expires=900..."
             },
             {
               "role": "BOTTOM",
-              "id": "item-2222",
+              "id": "22222222-2222-2222-2222-222222222222",
               "name": "Slim Beige Chinos",
               "category": "BOTTOM",
               "primaryColor": "BEIGE",
-              "downloadUrl": "https://..."
+              "secondaryColor": null,
+              "pattern": "SOLID",
+              "formalityLevel": "SMART_CASUAL",
+              "season": "ALL_SEASON",
+              "downloadUrl": "https://storage.groomai.com/wardrobe/user-1/chinos.jpg?X-Amz-Expires=900..."
             },
             {
               "role": "FOOTWEAR",
-              "id": "item-3333",
+              "id": "33333333-3333-3333-3333-333333333333",
               "name": "Brown Leather Penny Loafers",
               "category": "FOOTWEAR",
               "primaryColor": "BROWN",
-              "downloadUrl": "https://..."
+              "secondaryColor": null,
+              "pattern": "SOLID",
+              "formalityLevel": "SMART_CASUAL",
+              "season": "ALL_SEASON",
+              "downloadUrl": "https://storage.groomai.com/wardrobe/user-1/loafers.jpg?X-Amz-Expires=900..."
             }
           ]
+        }
+      ],
+      "warnings": []
+    }
+    ```
+  - When AI styling consent is absent, return deterministic candidates with rule-based explanations (`aiStylingAvailable: false`). Do not reject with `CONSENT_REQUIRED`.
+  - In local development mode (`storage.mode: local`), `downloadUrl` returns authenticated streaming URLs (`http://localhost:8080/api/v1/storage/files/wardrobe/...`). In staging/production, it returns private S3 pre-signed URLs with a 15-minute expiration TTL.
+  - If active wardrobe has $\ge 1$ Top, Bottom, and Footwear, but zero combinations meet occasion/weather constraints, returns `200 OK` with `"outfits": []` and a descriptive warning.
+  - `422 Unprocessable Entity`: `code: "INSUFFICIENT_WARDROBE_ITEMS"` (Requires at least 1 Top, 1 Bottom, 1 Footwear in active wardrobe; returns `missingCategories: ["BOTTOM", "FOOTWEAR"]`).
+  - `400 Bad Request`: `code: "VALIDATION_FAILED"` (Invalid occasion enum, limit > 10 or < 1).
+  - `504 Gateway Timeout`: `code: "AI_INFERENCE_TIMEOUT"` (Hosted AI provider exceeded 30s timeout; only when AI styling consent is active).
+
+### 5.2 Save Outfit Recommendation
+- **Method & Path:** `POST /api/v1/outfits`
+- **Authentication:** Bearer Token
+- **Request Body:**
+  ```json
+  {
+    "occasion": "SMART_CASUAL",
+    "name": "Summer Office Look",
+    "notes": "Classic navy and beige combination",
+    "itemIds": [
+      "item-1111-2222",
+      "item-3333-4444",
+      "item-5555-6666"
+    ],
+    "suitabilityScore": 88,
+    "stylingRationale": "Navy and Beige create classic harmony."
+  }
+  ```
+- **Responses:**
+  - `201 Created`:
+    ```json
+    {
+      "id": "outfit-9988-7766",
+      "occasion": "SMART_CASUAL",
+      "name": "Summer Office Look",
+      "notes": "Classic navy and beige combination",
+      "suitabilityScore": 88,
+      "stylingRationale": "Navy and Beige create classic harmony.",
+      "timesWorn": 0,
+      "lastWornAt": null,
+      "createdAt": "2026-10-30T10:00:00Z",
+      "updatedAt": "2026-10-30T10:00:00Z",
+      "items": [
+        {
+          "role": "TOP",
+          "id": "item-1111-2222",
+          "name": "Navy Oxford Shirt",
+          "category": "TOP",
+          "primaryColor": "NAVY",
+          "secondaryColor": null,
+          "pattern": "SOLID",
+          "formalityLevel": "SMART_CASUAL",
+          "season": "ALL_SEASON",
+          "downloadUrl": "https://storage.groomai.com/wardrobe/user-1/shirt.jpg?..."
         }
       ]
     }
     ```
-  - When AI styling consent is absent, return deterministic candidates without AI rationale; do not return `CONSENT_REQUIRED` solely because this optional AI step is unavailable.
-  - `400 Bad Request`: `code: "INSUFFICIENT_WARDROBE_ITEMS"` (Requires at least 1 Top, 1 Bottom, 1 Footwear).
-  - `504 Gateway Timeout`: `code: "AI_INFERENCE_TIMEOUT"` (AI provider exceeded 30s timeout).
+  - `400 Bad Request`: `code: "INVALID_OUTFIT_COMPOSITION"` (Missing required role: TOP, BOTTOM, or FOOTWEAR).
+  - `403 Forbidden`: `code: "FORBIDDEN"` (Referenced wardrobe item does not belong to authenticated user).
 
-### 5.2 Log Outfit as Worn Today
+### 5.3 List Saved Outfits
+- **Method & Path:** `GET /api/v1/outfits?page=0&size=20`
+- **Authentication:** Bearer Token
+- **Responses:**
+  - `200 OK`: Paginated list of user's saved outfits with item summaries and wear counts.
+
+### 5.4 Get Saved Outfit by ID
+- **Method & Path:** `GET /api/v1/outfits/{id}`
+- **Authentication:** Bearer Token
+- **Responses:**
+  - `200 OK`: Single saved outfit with constituent garments.
+  - `404 Not Found`: `code: "OUTFIT_NOT_FOUND"`.
+
+### 5.5 Log Outfit as Worn Today
 - **Method & Path:** `POST /api/v1/outfits/{id}/wear`
 - **Authentication:** Bearer Token
 - **Request Body:**
   ```json
   {
-    "wornDate": "2026-10-16",
-    "notes": "Client meeting went well; great outfit."
+    "wornDate": "2026-10-30",
+    "notes": "Dinner with friends at Italian bistro"
   }
   ```
 - **Responses:**
@@ -504,16 +596,53 @@ List endpoints support pagination:
     {
       "logId": "wear-5555-6666",
       "outfitId": "outfit-9988-7766",
-      "wornDate": "2026-10-16",
-      "message": "Outfit wear successfully logged. Repetition penalty applied for upcoming recommendations."
+      "wornDate": "2026-10-30",
+      "message": "Outfit wear recorded successfully"
     }
     ```
+  - `404 Not Found`: `code: "OUTFIT_NOT_FOUND"`.
 
-### 5.3 Get Wear History
-- **Method & Path:** `GET /api/v1/outfits/wear-history`
+### 5.6 Get Wear History
+- **Method & Path:** `GET /api/v1/outfits/wear-history` (alias: `/api/v1/outfits/history`)
+- **Query Parameters:** `page` (default 0), `size` (default 20)
 - **Authentication:** Bearer Token
 - **Responses:**
-  - `200 OK`: List of logged outfit wear dates and item summaries.
+  - `200 OK`:
+    ```json
+    {
+      "content": [
+        {
+          "logId": "wear-5555-6666",
+          "outfitId": "outfit-9988-7766",
+          "wornDate": "2026-10-30",
+          "notes": "Dinner with friends at Italian bistro",
+          "createdAt": "2026-10-30T19:30:00Z",
+          "occasion": "SMART_CASUAL",
+          "suitabilityScore": 88,
+          "stylingRationale": "Navy and Beige create classic harmony.",
+          "items": [
+            {
+              "role": "TOP",
+              "id": "item-1111-2222",
+              "name": "Navy Oxford Shirt",
+              "category": "TOP",
+              "primaryColor": "NAVY",
+              "secondaryColor": null,
+              "pattern": "SOLID",
+              "formalityLevel": "SMART_CASUAL",
+              "season": "ALL_SEASON",
+              "downloadUrl": "https://storage.groomai.com/wardrobe/user-1/shirt.jpg?..."
+            }
+          ]
+        }
+      ],
+      "page": 0,
+      "size": 20,
+      "totalElements": 1,
+      "totalPages": 1,
+      "last": true
+    }
+    ```
 
 ---
 

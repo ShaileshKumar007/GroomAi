@@ -151,29 +151,35 @@ This document details all functional and non-functional requirements for Groom.a
 #### FR-013: Deterministic Outfit Generator (Stage 1)
 - **Priority:** P0
 - **Dependencies:** FR-010
-- **Description:** System shall evaluate the user's active wardrobe items using deterministic grammar rules to generate valid outfit combinations in < 100ms without calling external AI models.
+- **Technical Specification:** `docs/OUTFIT_GENERATION_DESIGN.md`
+- **Description:** System shall evaluate the user's active wardrobe items using deterministic grammar rules and inspectable scoring components to generate, score, and rank valid outfit combinations in < 100ms without calling external AI models. Operates independently of AI styling consent.
 - **Acceptance Criteria:**
-  1. Category Completeness: Generates combinations containing exactly 1 Top + 1 Bottom + 1 Footwear (+ optional Outerwear if weather is cold/rainy; + optional Accessories).
-  2. Formality Filtering: All selected items must fall within acceptable formality bounds for the requested occasion.
-  3. Color Harmony: Evaluates color combinations using color theory rules (monochrome, complementary, neutral anchors).
-  4. Requires at least 1 Top, 1 Bottom, 1 Footwear in wardrobe; returns `INSUFFICIENT_WARDROBE_ITEMS` if incomplete.
+  1. Category Completeness: Generates combinations containing exactly 1 Top + 1 Bottom + 1 Footwear (+ optional Outerwear if weather is cool/cold/rainy; + optional Accessories).
+  2. Formality Filtering: Internal formality delta $\Delta_F \le 2$; hard rejection if $\Delta_F \ge 3$. All items must fall within acceptable bounds for the requested occasion.
+  3. Color Harmony: Evaluates color combinations using color theory rules (neutral anchors, single accent, monochromatic harmony; penalizes direct saturated clashes and multiple `MULTI` garments).
+  4. Season & Pattern Compatibility: Evaluates seasonal alignment (hard rejection on direct Winter/Summer collision) and pattern restraint (Rule of One Pattern; penalizes dual loud patterns).
+  5. Inspectable Scoring: Generates a normalized suitability score ($0\text{--}100$) with discrete score breakdown and structured explanations.
+  6. Minimum Wardrobe Gate: Requires at least 1 Top, 1 Bottom, 1 Footwear in user's active wardrobe; returns HTTP 422 `INSUFFICIENT_WARDROBE_ITEMS` with `missingCategories` array if incomplete.
+  7. Deterministic Tie-Breaking: Broken via wear recency, color harmony score, formality delta, and stable garment UUID ordering.
 
 #### FR-014: Multimodal AI Styling Rationale (Stage 2)
 - **Priority:** P0
 - **Dependencies:** FR-013, FR-007
-- **Description:** Backend shall invoke a hosted multimodal AI provider passing the pre-validated outfit candidate items from Stage 1 to generate natural-language styling advice.
+- **Description:** Backend shall invoke a hosted multimodal AI provider passing the pre-validated outfit candidate items from Stage 1 to generate natural-language styling advice only when `ai_styling_consent_granted == true`.
 - **Acceptance Criteria:**
   1. Generates clear styling explanations: why the pieces pair well, tucking/layering tips, and footwear pairing rationale.
   2. **Zero Wardrobe Item Hallucination Guardrail:** AI is strictly constrained to the candidate set; it never invents, assumes, or suggests items the user does not own.
   3. External AI call is bounded by a strict 30-second socket timeout.
+  4. If AI consent is absent or revoked, Stage 1 returns deterministic candidate outfits with rule-based explanations (`aiStylingAvailable: false`, `stylingRationale` populated from deterministic engine).
 
 #### FR-015: Weather & Occasion Context
 - **Priority:** P0
 - **Dependencies:** FR-013
-- **Description:** Outfit recommendation requests shall accept occasion and weather parameters to guide outfit filtering.
+- **Description:** Outfit recommendation requests shall accept occasion and weather parameters to guide deterministic candidate pre-filtering and scoring.
 - **Acceptance Criteria:**
-  1. Occasion presets: `CASUAL`, `SMART_CASUAL`, `BUSINESS_CASUAL`, `CORPORATE_FORMAL`, `DATE_NIGHT`, `LOUNGEWEAR`, `ATHLETIC`.
+  1. Occasion presets: `CASUAL`, `SMART_CASUAL`, `BUSINESS_CASUAL`, `FORMAL`, `DATE_NIGHT`, `LOUNGEWEAR`, `ATHLETIC`.
   2. Weather parameters: temperature bracket (`HOT`, `WARM`, `MILD`, `COOL`, `COLD`) and condition (`SUNNY`, `RAINY`, `WINDY`, `SNOWY`).
+  3. Temperature penalties: Outerwear penalized in `HOT` weather; absence of outerwear penalized in `COLD` weather. Occasion and weather fields are optional with sensible fallbacks.
 
 ---
 

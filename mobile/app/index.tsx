@@ -175,10 +175,19 @@ export default function HomeScreen(): React.JSX.Element {
               <View style={styles.actionButtonGroup}>
                 <TouchableOpacity
                   style={[styles.button, styles.primaryButton]}
+                  onPress={() => router.push('/outfits')}
+                  disabled={submitting}
+                  testID="dashboard-outfits-btn"
+                >
+                  <Text style={styles.primaryButtonText}>✨ Style Outfits</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.button, styles.secondaryButton]}
                   onPress={() => router.push('/wardrobe')}
                   disabled={submitting}
                 >
-                  <Text style={styles.primaryButtonText}>👗 View Digital Wardrobe</Text>
+                  <Text style={styles.secondaryButtonText}>👗 View Digital Wardrobe</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -187,6 +196,15 @@ export default function HomeScreen(): React.JSX.Element {
                   disabled={submitting}
                 >
                   <Text style={styles.secondaryButtonText}>+ Add Wardrobe Item</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.button, styles.secondaryButton]}
+                  onPress={() => router.push('/outfits/history')}
+                  disabled={submitting}
+                  testID="dashboard-outfit-history-btn"
+                >
+                  <Text style={styles.secondaryButtonText}>📜 Outfit History</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity

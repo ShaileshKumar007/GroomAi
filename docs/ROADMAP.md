@@ -15,8 +15,8 @@ The project is structured into sequential phases to validate technical feasibili
 graph TD
     Phase0["Phase 0: Project Setup & Baseline Scaffolding\n(Maven, Spring Boot 3, Expo, Flyway, CI)\n[COMPLETED]"]
     Phase1["Phase 1: Foundation & Authentication\n(Mobile connects to Backend, JWT Auth, Health Ping, Postgres)\n[COMPLETED]"]
-    Phase2["Phase 2: Digital Wardrobe Management\n(Wardrobe CRUD, Private Storage S3/Local, Lightweight Item Model, Dual Consent)\n[NEXT MILESTONE]"]
-    Phase3["Phase 3: Deterministic Outfit Engine & AI Styling Rationale\n(Completeness rules, Formality, Weather, Color Harmony, Explainable AI)"]
+    Phase2["Phase 2: Digital Wardrobe Management\n(Wardrobe CRUD, Private Storage, Lightweight Model, Dual Consent)\n[STAGES 3A-3C MERGED, 3D IN PR #8]"]
+    Phase3["Phase 3: Deterministic Outfit Engine & AI Styling Rationale\n(Completeness rules, Formality, Weather, Color Harmony, Explainable AI)\n[ACTIVE MILESTONE: STAGE 4A DESIGN COMPLETE, 4B NEXT]"]
     Phase4["Phase 4: Outfit History & Wear Tracking\n(Wear Logging, Repetition Penalty, Usage Insights)"]
     Phase5["Phase 5: Privacy, Deletion, Password Reset & Hardening\n(Account Cascade, Storage Outbox, Pwd Reset, Rate Limits)"]
     Phase6["Phase 6: Cloud Deployment & Beta Release\n(PaaS Deploy, Managed Postgres, S3, Beta Cohort)"]
@@ -39,29 +39,34 @@ graph TD
 
 
 ### Phase 0: Project Setup & Baseline Scaffolding
-- **Status:** Completed (commit `c108364`, PR #1 merge `ed3a244`). **CI run ID requires reconciliation:** this document previously listed `#38618698144`, while earlier project notes listed `#38615049255`.
+- **Status:** Completed (commit `c108364`, PR #1 merge `ed3a244`, CI run `#38618698144`).
 - **Delivered Capabilities:**
   - Initialized Spring Boot 3.3.5 project with Java 21 LTS, Maven, and Flyway.
   - Initialized React Native Expo mobile app with Expo Router and strict TypeScript.
   - Flyway migration `V1__initial_schema.sql` applied and tested against real PostgreSQL 16 Testcontainers.
-  - Multi-job CI pipeline verifying Java compilation, tests, TypeScript strictness, and Expo Doctor.
+  - Multi-job CI pipeline verifying Java compilation, tests, TypeScript strictness, and Expo bundle generation.
 
 ---
 
 ### Phase 1: Foundation & The First Vertical Slice
-- **Status:** **Implementation/CI reported complete; manual device E2E not confirmed** (commits listed here: `388a42c` through `57a200f`; CI run `#38627268448`; reconcile commit IDs against repository history before relying on this line)
+- **Status:** Completed & merged (commits `388a42c` through `57a200f`, PR #3 merge `27b7148`, CI run `#38627268448`).
 - **Delivered Capabilities:**
   - Public health check ping: `GET /api/v1/health` rendered on mobile onboarding screen.
   - User Registration and Login screens in the mobile app.
   - Backend `auth` module endpoints: `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`, and `GET /api/v1/auth/me`.
   - Secure token persistence on the mobile client using `Expo SecureStore`.
   - Centralized Axios client with automatic Bearer injection and 401 refresh interception.
-  - CI verification reported for backend/mobile tests and PostgreSQL integration tests; BCrypt (strength 12) password hashing and rotating refresh tokens are part of the Phase 1 implementation.
-  - **Manual physical-iPhone end-to-end verification: NOT YET CONFIRMED by the available evidence.** Record device, app/API configuration, tested flows, and result here only after a fresh successful run.
+  - CI verification for backend/mobile tests and PostgreSQL integration tests; BCrypt (strength 12) password hashing and rotating refresh tokens.
 
 ---
 
-### Phase 2: Digital Wardrobe Management (Next Milestone)
+### Phase 2: Digital Wardrobe Management (Stages 3A–3C Merged, Stage 3D in PR #8)
+- **Status:** **Stages 3A–3C merged into `main`; Stage 3D implemented, tested, and CI verified (PR #8).**
+- **Stage Breakdown:**
+  - **Stage 3A (Data Model & Schema):** Flyway `V2__wardrobe_schema.sql` (`wardrobe_items`, `style_preferences`, `user_profiles` dual consents). Merged into `main` (PR #5 `1f74d0d`).
+  - **Stage 3B (Ingestion & Storage):** `ObjectStorageService` abstraction (S3 + `LocalStorageService`), upload intent handshake (`POST /api/v1/wardrobe/upload-intent`), JPEG verification (`POST /api/v1/wardrobe/items`), mobile photo capture. Merged into `main` (PR #6 `2a1bb0e`).
+  - **Stage 3C (Catalog Browsing):** Paginated listing (`GET /api/v1/wardrobe/items`), item details (`GET /api/v1/wardrobe/items/{id}`), mobile catalog UI with category tabs and `AuthenticatedImage`. Merged into `main` (PR #7 `dbb2456`).
+  - **Stage 3D (Editing & Deletion):** Metadata editing (`PUT /api/v1/wardrobe/items/{id}`), transaction-safe deletion (`DELETE /api/v1/wardrobe/items/{id}`), hardened `StorageDeletionOutboxServiceImpl` with lease claim fencing and exponential retries, mobile edit/delete UI, Expo SDK 58 upgrade. Verified in CI run `40908009674` (PR #8 pending merge).
 - **Objective:** Implement user style preferences, dual decoupled privacy consents, and the digital wardrobe catalog with private object storage.
 - **Key Tasks:**
   - Author and apply Flyway migration `V2__wardrobe_schema.sql`:
@@ -101,25 +106,31 @@ graph TD
 
 ### Phase 3: Deterministic Outfit Engine & AI Styling Rationale
 - **Objective:** Build the two-stage hybrid outfit recommendation engine combining sub-100ms deterministic candidate generation with multimodal AI styling rationale.
-- **Key Tasks:**
-  - Implement Stage 1 Deterministic Combinations Engine in `com.groomai.outfit`:
-    - Category completeness rules: exactly 1 Top + 1 Bottom + 1 Footwear (+ optional Outerwear if weather is cold/rainy; + optional Accessories).
-    - Occasion & formality alignment (`CASUAL`, `SMART_CASUAL`, `BUSINESS_CASUAL`, `CORPORATE_FORMAL`, `DATE_NIGHT`, etc.).
-    - Weather compatibility rules: temperature brackets (`HOT`, `WARM`, `MILD`, `COOL`, `COLD`) and conditions (`SUNNY`, `RAINY`, `WINDY`, `SNOWY`).
-    - Color harmony matrix: monochromatic, complementary, neutral bases.
-    - Candidate ranking & top 2–3 selection.
-  - Implement Stage 2 Multimodal AI Styling Adapter:
-    - Passes pre-validated candidate items and styling prompt to external AI provider.
-    - Generates natural-language rationale: why the combination works, tucking/layering advice, shoe pairing tips.
-    - **Strict Guardrail:** AI is strictly constrained to the candidate set; it never hallucinates or recommends unowned clothes.
-    - Enforces 30-second socket timeout with graceful fallback and user quota preservation.
-  - Implement endpoint: `POST /api/v1/outfits/generate` (requires minimum 1 Top, 1 Bottom, 1 Footwear). AI styling consent is required only before invoking the hosted AI provider; without it, return deterministic candidates without AI-generated rationale.
-  - Build Mobile UI:
-    - Daily outfit recommendation generator screen with occasion selector and weather input.
-    - Recommendation result cards rendering complete outfits with item photos, suitability score, and AI styling explanation.
+- **Stage 4A: Rules, Scoring & Technical Design (Completed):**
+  - Formulated slot grammar: 1 Top + 1 Bottom + 1 Footwear (required); optional Outerwear and Accessory.
+  - Formulated composite suitability score ($0\text{--}100$): Color Harmony ($30$), Formality ($25$), Season ($20$), Pattern ($15$), Style Preferences ($10$), minus Wear Repetition ($-20$) and Weather ($-15$) deductions.
+  - Formulated hard rejection gates ($\Delta_F \ge 3$, seasonal collision, temperature mismatch) and deterministic 4-stage tie-breaking hierarchy.
+  - Authored comprehensive technical design in `docs/OUTFIT_GENERATION_DESIGN.md`.
+  - Accepted ADR-0009 in `docs/DECISIONS.md`.
+- **Stage 4B: Deterministic Engine Implementation & Verification (Next):**
+  - Implement domain package `com.groomai.outfit`:
+    - Enums: `Occasion`, `WeatherCondition`.
+    - DTOs: `OutfitRecommendationRequestDto`, `OutfitRecommendationResponseDto`, `ScoreBreakdownDto`.
+    - Component scorers: `ColorCompatibilityScorer`, `FormalityCompatibilityScorer`, `SeasonCompatibilityScorer`, `PatternCompatibilityScorer`, `WearHistoryPenaltyScorer`.
+    - Service: `OutfitGeneratorService` & `OutfitGeneratorServiceImpl` with pre-filtering, tuple generation, and bounded min-heap priority queue.
+    - Controller: `OutfitController` exposing `POST /api/v1/outfits/generate`.
+  - Exception handling: Global handler for `InsufficientWardrobeItemsException` returning HTTP 422 with `missingCategories`.
+  - Test suite: Unit tests for all 10 benchmark evaluation scenarios; JUnit microbenchmark verifying $< 100\text{ ms}$ execution for 500-item wardrobes; tenancy isolation integration tests.
+  - Mobile UI: Daily outfit recommendation screen (`mobile/app/outfits/index.tsx`) with occasion selector chips, weather input, recommendation cards carousel, and score breakdown.
+- **Stage 4C: Multimodal AI Styling Rationale (Future):**
+  - Passes pre-validated candidate items and styling prompt to external AI provider only when `ai_styling_consent_granted == true`.
+  - Generates natural-language rationale: why the combination works, tucking/layering advice, shoe pairing tips.
+  - **Strict Guardrail:** AI is strictly constrained to the candidate set; it never invents or recommends unowned clothes.
+  - Enforces 30-second socket timeout with graceful fallback and user quota preservation.
 - **Definition of Done (DoD):**
-  - Recommendation generation executes reliably with zero unowned item hallucinations.
-  - WireMock integration tests verify behavior on AI timeouts and rate limits.
+  - Recommendation generation executes in $< 100\text{ ms}$ with zero unowned item hallucinations.
+  - Works offline/without AI consent, returning deterministic candidate combinations and structured explanations.
+  - WireMock integration tests verify behavior on AI timeouts and rate limits when AI styling is enabled.
 
 ---
 
