@@ -16,6 +16,7 @@ export interface ApiErrorResponse {
   readonly message: string;
   readonly path: string;
   readonly details?: readonly ApiErrorDetail[];
+  readonly missingCategories?: readonly string[];
 }
 
 export interface HealthResponse {
@@ -27,11 +28,18 @@ export interface HealthResponse {
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
+  readonly missingCategories?: readonly string[];
 
-  constructor(message: string, code: string, status: number) {
+  constructor(
+    message: string,
+    code: string,
+    status: number,
+    missingCategories?: readonly string[]
+  ) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
     this.status = status;
+    this.missingCategories = missingCategories;
   }
 }

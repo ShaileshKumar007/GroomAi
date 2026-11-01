@@ -9,12 +9,13 @@ import java.util.List;
  * Standard error response record matching docs/API_SPEC.md Section 1.4.
  *
  * @param timestamp Instant of error occurrence in UTC
- * @param status HTTP status code (e.g., 400, 401, 404, 500)
+ * @param status HTTP status code (e.g., 400, 401, 404, 422, 500)
  * @param error HTTP status reason phrase (e.g., "Bad Request")
- * @param code Domain error code (e.g., "VALIDATION_FAILED", "UNAUTHORIZED")
+ * @param code Domain error code (e.g., "VALIDATION_FAILED", "UNAUTHORIZED", "INSUFFICIENT_WARDROBE_ITEMS")
  * @param message Human-readable, client-safe error message
  * @param path Requested resource URI path
  * @param details Optional field-level error details (for validation failures)
+ * @param missingCategories Optional list of missing wardrobe category names (for 422 unprocessable entity)
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ErrorResponse(
@@ -24,10 +25,15 @@ public record ErrorResponse(
     String code,
     String message,
     String path,
-    List<FieldErrorDetail> details
+    List<FieldErrorDetail> details,
+    List<String> missingCategories
 ) {
     public ErrorResponse(Instant timestamp, int status, String error, String code, String message, String path) {
-        this(timestamp, status, error, code, message, path, null);
+        this(timestamp, status, error, code, message, path, null, null);
+    }
+
+    public ErrorResponse(Instant timestamp, int status, String error, String code, String message, String path, List<FieldErrorDetail> details) {
+        this(timestamp, status, error, code, message, path, details, null);
     }
 
     public record FieldErrorDetail(

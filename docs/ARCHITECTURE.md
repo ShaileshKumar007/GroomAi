@@ -218,21 +218,25 @@ sequenceDiagram
 ```
 
 #### 4.2.1 Stage 1: Deterministic Candidate Generation & Grammar Rules
+Detailed technical design, scoring matrices, and pseudocode are documented in `docs/OUTFIT_GENERATION_DESIGN.md`.
 1. **Category Completeness:** Every valid outfit candidate must contain at minimum:
    - Exactly 1 `TOP`
    - Exactly 1 `BOTTOM`
    - Exactly 1 `FOOTWEAR`
-   - Optional `OUTERWEAR` (required or recommended if weather is `COLD` or `COOL`, or condition is `RAINY`)
+   - Optional `OUTERWEAR` (assigned when temperature is `COOL`/`COLD` or condition is `RAINY`/`SNOWY`)
    - Optional `ACCESSORY` (watch, belt, hat)
-2. **Occasion & Formality Bounds:** Filters items whose `formalityLevel` is compatible with the requested occasion (`CASUAL`, `SMART_CASUAL`, `BUSINESS_CASUAL`, `CORPORATE_FORMAL`, `DATE_NIGHT`, `LOUNGEWEAR`, `ATHLETIC`).
-3. **Weather Compatibility:** Evaluates seasonal tags (`SUMMER`, `WINTER`, `ALL_SEASON`) and weather flags against client-provided temperature bracket (`HOT`, `WARM`, `MILD`, `COOL`, `COLD`) and condition (`SUNNY`, `RAINY`, `WINDY`, `SNOWY`).
-4. **Color Harmony Matrix:** Applies classic color theory (monochromatic, analogous, complementary, neutral anchors such as navy, white, black, grey, beige).
-5. **Wear History Repetition Penalty:** Checks `outfit_wear_logs` within the past 3–7 days; items worn recently receive heavy scoring deductions to ensure variety.
+2. **Occasion & Formality Bounds:** Filters items whose `formalityLevel` is compatible with the requested occasion (`CASUAL`, `SMART_CASUAL`, `BUSINESS_CASUAL`, `FORMAL`, `DATE_NIGHT`, `LOUNGEWEAR`, `ATHLETIC`). Hard rejection if internal formality delta $\Delta_F \ge 3$.
+3. **Weather Compatibility:** Evaluates seasonal tags (`SPRING`, `SUMMER`, `FALL`, `WINTER`, `ALL_SEASON`) and weather flags against temperature brackets (`HOT`, `WARM`, `MILD`, `COOL`, `COLD`). Hard rejection on direct Summer/Winter collisions.
+4. **Color Harmony Matrix:** Applies classic color theory (neutral anchors, single accent, monochromatic harmony). Penalizes saturated clashes and multiple `MULTI` garments.
+5. **Pattern Restraint:** Enforces the "Rule of One Pattern". Penalizes multiple loud patterns.
+6. **Wear History Repetition Penalty:** Queries `outfit_wear_logs` within the past 7 days; items worn today ($-20$) or recently ($-12$) receive scoring deductions to ensure fresh combinations.
+7. **Deterministic Tie-Breaking:** Ties broken via least recently worn, color harmony score, formality delta, and stable garment UUID ordering.
 
 #### 4.2.2 Stage 2: Multimodal AI Styling Rationale
-- The candidate combinations produced by Stage 1 are passed to the hosted multimodal AI.
+- The candidate combinations produced by Stage 1 are passed to the hosted multimodal AI **only if `ai_styling_consent_granted == true`**.
 - The AI's role is strictly **explanatory and advisory**: it articulates why the combination looks good, offers proportion advice (e.g., untucked vs. French tuck), and explains why an alternative combination was ranked lower.
 - **Strict Guardrail:** The AI is strictly constrained to the candidate item set; it is forbidden from proposing garments not owned by the user.
+- **Consent Decoupling Fallback:** If AI styling consent is not granted or is revoked, Stage 1 returns the deterministic candidates with structured rule-based explanations (`aiStylingAvailable: false`). No wardrobe data is sent to external AI providers.
 
 ---
 
@@ -288,7 +292,7 @@ To protect user trust, Groom.ai decouples consent into two explicit, unbundled f
 #### 6.1.1 Consent Revocation Semantics
 Users can update their consent preferences at any time via `PUT /api/v1/profile/consents`:
 - **Wardrobe Storage Revocation (`wardrobe_storage_consent_granted = false`):** Immediately blocks future upload intent creation (`POST /api/v1/wardrobe/upload-intent` fails with HTTP `403 Forbidden` / `CONSENT_REQUIRED`). Existing wardrobe items remain saved and accessible in the user's digital wardrobe catalog unless the user explicitly deletes them.
-- **AI Styling Revocation (`ai_styling_consent_granted = false`):** Immediately blocks future outfit generation requests (`POST /api/v1/outfits/generate` fails with HTTP `403 Forbidden` / `CONSENT_REQUIRED`). Previously generated outfits, saved outfits, and wear history remain intact.
+- **AI Styling Revocation (`ai_styling_consent_granted = false`):** Does NOT block deterministic outfit generation. Future calls to `POST /api/v1/outfits/generate` continue to return deterministic candidates and rule-based explanations, but external multimodal AI calls are skipped and AI-written styling rationale/tips are omitted (`aiStylingAvailable: false`). No wardrobe data or images are transmitted to external AI providers.
 
 ### 6.2 Data Deletion & Cloud Storage Outbox Pipeline
 
