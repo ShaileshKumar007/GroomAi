@@ -233,34 +233,44 @@ Catalog of clothing items, shoes, and accessories owned by the user.
 
 ---
 
-### 3.5 Table: `outfits` (Proposed — Phase 3 Specification)
-Stores recommended and saved outfit combinations.
+### 3.5 Table: `outfits` (Updated in V3 Schema)
+Stores recommended, custom-curated, and saved outfit combinations.
 
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | Unique outfit identifier. |
 | `user_id` | `UUID` | `NOT NULL REFERENCES users(id) ON DELETE CASCADE` | Owning user ID. |
-| `occasion` | `VARCHAR(50)` | `NOT NULL` | Target occasion (`CASUAL`, `SMART_CASUAL`, `BUSINESS_CASUAL`, `CORPORATE_FORMAL`, `DATE_NIGHT`, `LOUNGEWEAR`, `ATHLETIC`). |
+| `name` | `VARCHAR(100)` | `NULL` | Optional user-provided or generated outfit title. |
+| `occasion` | `VARCHAR(50)` | `NOT NULL` | Target occasion (`CASUAL`, `SMART_CASUAL`, `BUSINESS_CASUAL`, `FORMAL`, `DATE_NIGHT`, `LOUNGEWEAR`, `ATHLETIC`). |
 | `temperature_bracket` | `VARCHAR(32)` | `NULL` | Weather temperature bracket (`HOT`, `WARM`, `MILD`, `COOL`, `COLD`). |
-| `weather_condition` | `VARCHAR(32)` | `NULL` | Condition tag (`SUNNY`, `RAINY`, `WINDY`, `SNOWY`, `CLOUDY`). |
-| `styling_rationale` | `TEXT` | `NOT NULL` | AI-generated explanation of why the outfit works and styling tips. |
-| `suitability_score` | `INTEGER` | `NOT NULL` | Deterministic engine suitability score (1–100). |
-| `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT NOW()` | Recommendation timestamp. |
+| `weather_condition` | `VARCHAR(32)` | `NULL` | Condition tag (`SUNNY`, `RAINY`, `WINDY`, `SNOWY`). |
+| `styling_rationale` | `TEXT` | `NOT NULL` | Honest styling rationale explaining why the combination works. |
+| `suitability_score` | `INTEGER` | `NULL` | Deterministic engine suitability score (1–100); NULL for custom/unscored outfits. |
+| `score_status` | `VARCHAR(32)` | `NOT NULL DEFAULT 'UNSCORED'` | Scoring status (`CALCULATED`, `CUSTOM`, `UNSCORED`). |
+| `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT NOW()` | Creation timestamp. |
 
 - **Indexes:**
   - `idx_outfits_user_created` ON `outfits (user_id, created_at DESC)`
 
 ---
 
-### 3.6 Table: `outfit_items` (Proposed — Phase 3 Specification)
-Links wardrobe items into an outfit.
+### 3.6 Table: `outfit_items` (Updated in V3 Schema)
+Links wardrobe items into an outfit with immutable garment metadata snapshots.
 
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | `PRIMARY KEY DEFAULT gen_random_uuid()` | Unique entry identifier. |
 | `outfit_id` | `UUID` | `NOT NULL REFERENCES outfits(id) ON DELETE CASCADE` | Parent outfit reference. |
-| `wardrobe_item_id` | `UUID` | `NULL REFERENCES wardrobe_items(id) ON DELETE SET NULL` | Wardrobe item (decoupled: item deletion preserves outfit text). |
+| `wardrobe_item_id` | `UUID` | `NULL REFERENCES wardrobe_items(id) ON DELETE SET NULL` | Wardrobe item (decoupled: item deletion preserves snapshot attributes). |
 | `item_role` | `VARCHAR(32)` | `NOT NULL` | Role in outfit (`TOP`, `BOTTOM`, `FOOTWEAR`, `OUTERWEAR`, `ACCESSORY`). |
+| `category` | `VARCHAR(32)` | `NULL` | Immutable category snapshot at outfit creation. |
+| `subcategory` | `VARCHAR(64)` | `NULL` | Immutable subcategory snapshot at outfit creation. |
+| `primary_color` | `VARCHAR(32)` | `NULL` | Immutable primary color snapshot at outfit creation. |
+| `secondary_color` | `VARCHAR(32)` | `NULL` | Immutable secondary color snapshot at outfit creation. |
+| `pattern` | `VARCHAR(32)` | `NULL` | Immutable pattern snapshot at outfit creation. |
+| `fabric` | `VARCHAR(32)` | `NULL` | Immutable fabric snapshot at outfit creation. |
+| `brand` | `VARCHAR(64)` | `NULL` | Immutable brand snapshot at outfit creation. |
+| `original_storage_key` | `VARCHAR(512)` | `NULL` | Original image storage key snapshot at outfit creation. |
 
 - **Indexes:**
   - `idx_outfit_items_outfit_id` ON `outfit_items (outfit_id)`
@@ -268,8 +278,8 @@ Links wardrobe items into an outfit.
 
 ---
 
-### 3.7 Table: `outfit_wear_logs` (Proposed — Phase 4 Specification)
-Tracks historical wear dates for outfits to prevent repetitive recommendations.
+### 3.7 Table: `outfit_wear_logs` (Updated in V3 Schema)
+Tracks historical wear dates for outfits with versioned JSONB snapshot preservation.
 
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
@@ -277,11 +287,13 @@ Tracks historical wear dates for outfits to prevent repetitive recommendations.
 | `user_id` | `UUID` | `NOT NULL REFERENCES users(id) ON DELETE CASCADE` | Owning user ID. |
 | `outfit_id` | `UUID` | `NULL REFERENCES outfits(id) ON DELETE SET NULL` | Associated outfit reference. |
 | `worn_date` | `DATE` | `NOT NULL DEFAULT CURRENT_DATE` | Date when the outfit was worn. |
-| `notes` | `TEXT` | `NULL` | Optional personal user wear notes. |
+| `notes` | `TEXT` | `NULL` | Personal user wear notes (reconciled and preserved without truncation). |
+| `snapshot` | `JSONB` | `NULL` | Versioned JSON snapshot of outfit and items at wear log creation. |
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT NOW()` | Log entry creation timestamp. |
 
 - **Indexes:**
   - `idx_outfit_wear_logs_user_date` ON `outfit_wear_logs (user_id, worn_date DESC)`
+  - `uq_outfit_wear_logs_user_outfit_date` UNIQUE ON `outfit_wear_logs (user_id, outfit_id, worn_date) WHERE outfit_id IS NOT NULL`
 
 ---
 

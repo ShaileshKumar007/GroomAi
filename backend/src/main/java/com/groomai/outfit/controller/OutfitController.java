@@ -107,9 +107,17 @@ public class OutfitController {
     public ResponseEntity<LogOutfitWearResponseDto> logOutfitWear(
         @AuthenticationPrincipal UserPrincipal principal,
         @PathVariable UUID id,
+        @org.springframework.web.bind.annotation.RequestHeader(value = "X-Timezone", required = false) String timezoneHeader,
         @Valid @RequestBody(required = false) LogOutfitWearRequestDto request
     ) {
-        LogOutfitWearResponseDto response = outfitPersistenceService.logOutfitWear(principal.id(), id, request);
+        String tz = (request != null && request.timezone() != null && !request.timezone().isBlank())
+            ? request.timezone()
+            : timezoneHeader;
+        LogOutfitWearRequestDto effectiveRequest = (request != null)
+            ? new LogOutfitWearRequestDto(request.wornDate(), request.notes(), tz)
+            : new LogOutfitWearRequestDto(null, null, tz);
+
+        LogOutfitWearResponseDto response = outfitPersistenceService.logOutfitWear(principal.id(), id, effectiveRequest);
         return ResponseEntity.ok(response);
     }
 

@@ -43,10 +43,12 @@ The table below maintains separate status indicators for implementation, testing
 | **Stage 3B: Wardrobe Ingestion** | Implemented | 100% Passing | Verified | `feature/phase-2-wardrobe` | **Merged** (`2a1bb0e`, PR #6) | Tested on device | **Completed** |
 | **Stage 3C: Wardrobe Catalog UI** | Implemented | 100% Passing | Verified | `feature/phase-2-wardrobe` | **Merged** (`dbb2456`, PR #7) | Tested on device | **Completed** |
 | **Stage 3D: Edit & Delete Garments** | Implemented | 100% Passing | Verified (`#40908009674`) | `feature/phase-2-wardrobe` | **Pending Merge** (PR #8) | Tested locally | **Verified in CI** |
-| **Stage 4A: Outfit Rules & Design** | Implemented (Docs) | N/A (Design) | Verified (`#40908009674`) | `feature/phase-2-wardrobe` | **Pending Merge** (PR #8) | N/A | **Completed (Design)** |
-| **Stage 4B: Deterministic Engine** | Implemented (Backend) | 100% Passing (235 tests) | Pending PR | `feature/phase-2-wardrobe` | Unmerged | Not started (Backend only) | **Backend Complete** |
-| **Stage 4C: AI Styling Adapter** | Not started | Not started | Not started | TBD | Unmerged | Not started | **Pending** |
-| **Phase 4: Outfit Wear Logging** | Schema ready | Not started | Not started | TBD | Unmerged | Not started | **Pending** |
+| **Stage 4A: Outfit Rules & Design** | Implemented (Docs) | N/A (Design) | Verified (`#40908009674`) | `feature/phase-2-wardrobe` | **Merged** | N/A | **Completed (Design)** |
+| **Stage 4B: Deterministic Engine** | Implemented (Backend) | 100% Passing (235 tests) | Verified locally | `feature/phase-4-outfits` | In PR | Tested locally | **Completed** |
+| **Stage 4C.1: Mobile Outfit Experience** | Implemented (Mobile) | 100% Passing (160 tests) | Verified locally | `feature/phase-4-outfits` | In PR | Tested locally | **Completed** |
+| **Stage 4C.2: Persistence & Wear Logging** | Implemented (Full-Stack) | 100% Passing (253 tests) | Verified locally | `feature/phase-4-outfits` | In PR | Tested locally | **Completed** |
+| **Stage 4C.2.1: Data Integrity Hardening** | Implemented (Full-Stack) | 100% Passing (255 backend, 169 mobile) | Verified locally | `feature/phase-4-outfits` | In Working Tree | Tested locally | **Completed** |
+| **Stage 4C.3: AI Styling Adapter** | Not started | Not started | Not started | TBD | Unmerged | Not started | **Next** |
 | **Phase 5: Privacy & Account Erasure** | Outbox ready | Unit tests only | Not started | TBD | Unmerged | Not started | **Pending** |
 | **Phase 6: Cloud Deployment & Beta** | Not started | Not started | Not started | TBD | Unmerged | Not started | **Pending** |
 
@@ -156,16 +158,36 @@ The table below maintains separate status indicators for implementation, testing
     - `mobile/app/outfits/[id].tsx`: Added Save Outfit and Mark as Worn Today actions with wear notes toggle, confirmation banners, and button states.
     - `mobile/app/outfits/history.tsx`: Dedicated wear history screen displaying historical wear events, occasion, score, garment thumbnails, notes, and styling rationale.
     - Updated navigation in `mobile/app/_layout.tsx`, `mobile/app/outfits/index.tsx`, and `mobile/app/index.tsx`.
+
+### 3.11 Phase 3 / Stage 4C.2.1: Historical Data Integrity & Wear Logging Hardening
+- **Capabilities Delivered:**
+  - **V3 Database Migration (`V3__outfit_snapshots_and_wear_hardening.sql`):**
+    - `outfits`: Added `name VARCHAR(100)`, `score_status VARCHAR(32) NOT NULL DEFAULT 'UNSCORED'`, made `suitability_score` nullable. Invalidated unverified legacy client scores to `UNSCORED` / `NULL`.
+    - `outfit_items`: Added immutable garment snapshot columns (`category`, `subcategory`, `primary_color`, `secondary_color`, `pattern`, `fabric`, `brand`, `original_storage_key`) backfilled from active `wardrobe_items`.
+    - `outfit_wear_logs`: Added `snapshot JSONB` column, backfilled with version 1 JSON snapshots constructed via `jsonb_build_object` and `jsonb_agg`.
+    - Duplicate Reconciliation: Deduplicated existing wear logs partitioned by `(user_id, outfit_id, worn_date)` ordered by `created_at ASC, id ASC`, merged distinct non-empty notes via `string_agg(DISTINCT TRIM(notes), E'\n---\n')` without truncation into the rank-1 survivor, deleted redundant records, and created a partial unique index `uq_outfit_wear_logs_user_outfit_date WHERE outfit_id IS NOT NULL`.
+  - **Authoritative Backend Scoring & Enums:**
+    - Added `ScoreStatus` enum (`CALCULATED`, `CUSTOM`, `UNSCORED`).
+    - In `OutfitPersistenceServiceImpl.saveOutfit`: Never trust client-submitted scores. Re-evaluate candidate outfit against `OutfitScoringEngine`; if valid, assign calculated score and `ScoreStatus.CALCULATED`. If gates are violated by custom curation, assign `null` score and `ScoreStatus.CUSTOM`.
+  - **Atomic Native Idempotent Wear Logging:**
+    - Implemented native `insertWearLogIdempotent` query (`INSERT ... ON CONFLICT (user_id, outfit_id, worn_date) DO NOTHING`).
+    - Conflict returns 0 rows without throwing JDBC constraint exceptions, completely avoiding Spring `@Transactional` rollback-only traps; retrieves and returns existing wear log ID.
+  - **Timezone Validation & Local Calendar Dates:**
+    - Mobile transmits local device date (`YYYY-MM-DD`) and IANA timezone (`X-Timezone` header and payload).
+    - Backend resolves and validates timezone via `ZoneId` (UTC fallback) and strictly rejects future wear dates relative to localized user time.
+  - **Mobile UI Hardening:**
+    - `mobile/app/outfits/history.tsx`: Added category-based placeholder icons (👕, 👖, 👟, 🧥, 🕶️) when images are unavailable; rendered "Custom" / "Unscored" dashed badges for null scores; displayed outfit titles.
+    - Updated `AuthenticatedImage` to safely handle nullable URIs without layout shifts or runtime errors.
 - **Verification & Evidence:**
-  - Backend: **253 tests run, 0 failures, 0 errors, 19 skipped** (Docker).
+  - Backend: **255 tests run, 0 failures, 0 errors, 19 skipped** (Docker).
   - Mobile: **18 test suites, 169 tests run, 0 failures**. TypeScript strict check (`npm run type-check`): **0 errors**.
 
 ---
 
 ## 4. Current Work: Milestone Status & Phase 4 Preparation
 
-- **Active Milestone:** Completed Stage 4C.2 (Outfit Persistence & Wear Logging); preparing for Phase 4 / Stage 4D (Hosted Multimodal AI Styling Adapter).
-- **Prerequisite Status:** Deterministic outfit generation, outfit persistence, wear tracking, and mobile curation experience fully implemented and verified locally.
+- **Active Milestone:** Completed Stage 4C.2.1 (Historical Data Integrity & Wear Logging Hardening); ready for Stage 4C.3 / Stage 4D (Hosted Multimodal AI Styling Adapter).
+- **Prerequisite Status:** Deterministic outfit generation, outfit persistence, wear tracking, immutable snapshots, and idempotent wear logging fully implemented and verified locally.
 
 ---
 
@@ -177,7 +199,8 @@ flowchart TD
     M2["Stage 4B: Deterministic Generation Engine Backend (COMPLETED)"]
     M3["Stage 4C.1: Mobile Recommendation Experience (COMPLETED)"]
     M4["Stage 4C.2: Outfit Persistence & Wear Logging (COMPLETED)"]
-    M5["Stage 4D: Hosted Multimodal AI Styling Adapter (NEXT)"]
+    M5["Stage 4C.2.1: Data Integrity & Wear Hardening (COMPLETED)"]
+    M6["Stage 4C.3: Multimodal AI Styling Adapter (NEXT)"]
     M6["Phase 5: Privacy, Deletion Cascade & Hardening"]
     M7["Phase 6: Cloud Deployment & Public Beta"]
 

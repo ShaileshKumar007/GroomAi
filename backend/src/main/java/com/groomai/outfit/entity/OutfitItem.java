@@ -46,4 +46,32 @@ public class OutfitItem {
 
     @Column(name = "item_role", nullable = false, length = 32)
     private String itemRole;
+
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(name = "category", length = 32)
+    private com.groomai.wardrobe.enums.Category category;
+
+    @Column(name = "subcategory", length = 64)
+    private String subcategory;
+
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(name = "primary_color", length = 32)
+    private com.groomai.wardrobe.enums.Color primaryColor;
+
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(name = "secondary_color", length = 32)
+    private com.groomai.wardrobe.enums.Color secondaryColor;
+
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(name = "pattern", length = 32)
+    private com.groomai.wardrobe.enums.Pattern pattern;
+
+    @Column(name = "fabric", length = 32)
+    private String fabric;
+
+    @Column(name = "brand", length = 64)
+    private String brand;
+
+    @Column(name = "original_storage_key", length = 512)
+    private String originalStorageKey;
 }

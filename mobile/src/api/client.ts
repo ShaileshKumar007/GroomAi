@@ -728,12 +728,26 @@ export async function apiLogOutfitWear(
   outfitId: string,
   payload?: LogOutfitWearPayload
 ): Promise<LogOutfitWearResponseDto> {
+  const tz = payload?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const localDateStr = `${year}-${month}-${day}`;
+
+  const requestBody: LogOutfitWearPayload = {
+    wornDate: payload?.wornDate || localDateStr,
+    notes: payload?.notes,
+    timezone: tz,
+  };
+
   const response = await authenticatedFetch(`/outfits/${outfitId}/wear`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'X-Timezone': tz,
     },
-    body: JSON.stringify(payload || {}),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {

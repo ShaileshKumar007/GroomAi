@@ -1,22 +1,30 @@
 package com.groomai.outfit.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.groomai.common.exception.GroomAiException;
 import com.groomai.outfit.dto.LogOutfitWearRequestDto;
 import com.groomai.outfit.dto.LogOutfitWearResponseDto;
 import com.groomai.outfit.dto.OutfitWearHistoryDto;
 import com.groomai.outfit.dto.SaveOutfitRequestDto;
 import com.groomai.outfit.dto.SavedOutfitResponseDto;
+import com.groomai.outfit.dto.ScoreBreakdownDto;
 import com.groomai.outfit.entity.Outfit;
 import com.groomai.outfit.entity.OutfitItem;
 import com.groomai.outfit.entity.OutfitWearLog;
 import com.groomai.outfit.enums.Occasion;
+import com.groomai.outfit.enums.ScoreStatus;
 import com.groomai.outfit.enums.TemperatureBracket;
 import com.groomai.outfit.enums.WeatherCondition;
+import com.groomai.outfit.model.CandidateOutfit;
+import com.groomai.outfit.model.ScoredOutfit;
+import com.groomai.outfit.model.WearLogSnapshot;
 import com.groomai.outfit.repository.OutfitItemRepository;
 import com.groomai.outfit.repository.OutfitRepository;
 import com.groomai.outfit.repository.OutfitWearLogRepository;
+import com.groomai.outfit.scorer.OutfitScoringEngine;
 import com.groomai.storage.ObjectStorageService;
 import com.groomai.user.entity.User;
+import com.groomai.user.repository.StylePreferencesRepository;
 import com.groomai.user.repository.UserRepository;
 import com.groomai.wardrobe.entity.WardrobeItem;
 import com.groomai.wardrobe.enums.Category;
@@ -32,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -40,6 +49,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,6 +61,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -74,7 +86,16 @@ class OutfitPersistenceServiceImplTest {
     private UserRepository userRepository;
 
     @Mock
+    private StylePreferencesRepository stylePreferencesRepository;
+
+    @Mock
     private ObjectStorageService objectStorageService;
+
+    @Mock
+    private OutfitScoringEngine outfitScoringEngine;
+
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @InjectMocks
     private OutfitPersistenceServiceImpl outfitPersistenceService;
@@ -96,6 +117,7 @@ class OutfitPersistenceServiceImplTest {
             .user(testUser)
             .name("Navy Oxford Shirt")
             .category(Category.TOP)
+            .subcategory("Oxford Shirt")
             .primaryColor(Color.NAVY)
             .pattern(Pattern.SOLID)
             .formalityLevel(FormalityLevel.SMART_CASUAL)
@@ -109,6 +131,7 @@ class OutfitPersistenceServiceImplTest {
             .user(testUser)
             .name("Slim Beige Chinos")
             .category(Category.BOTTOM)
+            .subcategory("Chinos")
             .primaryColor(Color.BEIGE)
             .pattern(Pattern.SOLID)
             .formalityLevel(FormalityLevel.SMART_CASUAL)
@@ -122,6 +145,7 @@ class OutfitPersistenceServiceImplTest {
             .user(testUser)
             .name("Brown Loafers")
             .category(Category.FOOTWEAR)
+            .subcategory("Loafers")
             .primaryColor(Color.BROWN)
             .pattern(Pattern.SOLID)
             .formalityLevel(FormalityLevel.SMART_CASUAL)
@@ -135,6 +159,7 @@ class OutfitPersistenceServiceImplTest {
             .user(testUser)
             .name("Navy Blazer")
             .category(Category.OUTERWEAR)
+            .subcategory("Blazer")
             .primaryColor(Color.NAVY)
             .pattern(Pattern.SOLID)
             .formalityLevel(FormalityLevel.SMART_CASUAL)
@@ -145,20 +170,33 @@ class OutfitPersistenceServiceImplTest {
     }
 
     @Test
-    @DisplayName("saveOutfit: successfully saves 3-piece core outfit and returns response with download URLs")
-    void saveOutfit_success_coreItems() {
+    @DisplayName("saveOutfit: authoritative backend scoring calculates score and saves snapshots")
+    void saveOutfit_success_authoritativeScoring() {
         List<UUID> itemIds = List.of(topItem.getId(), bottomItem.getId(), footwearItem.getId());
         SaveOutfitRequestDto request = new SaveOutfitRequestDto(
             itemIds,
             Occasion.SMART_CASUAL,
             TemperatureBracket.MILD,
             WeatherCondition.SUNNY,
-            "Classic Navy and Beige contrast.",
-            92
+            "User provided client rationale",
+            99 // Client-provided untrusted score
         );
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
         when(wardrobeItemRepository.findAllById(itemIds)).thenReturn(List.of(topItem, bottomItem, footwearItem));
+        when(stylePreferencesRepository.findByUserId(userId)).thenReturn(Optional.empty());
+
+        CandidateOutfit candidate = new CandidateOutfit(topItem, bottomItem, footwearItem);
+        ScoredOutfit scored = new ScoredOutfit(
+            candidate,
+            88, // Authoritative backend calculated score
+            new ScoreBreakdownDto(25, 25, 20, 10, 8, 0),
+            "Authoritative styling rationale",
+            0
+        );
+        when(outfitScoringEngine.scoreOutfit(any(), eq(Occasion.SMART_CASUAL), eq(TemperatureBracket.MILD), eq(WeatherCondition.SUNNY), any(), any()))
+            .thenReturn(Optional.of(scored));
+
         when(outfitRepository.save(any(Outfit.class))).thenAnswer(inv -> {
             Outfit o = inv.getArgument(0);
             o.setId(UUID.randomUUID());
@@ -171,29 +209,32 @@ class OutfitPersistenceServiceImplTest {
 
         assertThat(response.id()).isNotNull();
         assertThat(response.occasion()).isEqualTo(Occasion.SMART_CASUAL);
-        assertThat(response.suitabilityScore()).isEqualTo(92);
-        assertThat(response.stylingRationale()).isEqualTo("Classic Navy and Beige contrast.");
+        assertThat(response.suitabilityScore()).isEqualTo(88); // Overridden authoritatively, not 99!
+        assertThat(response.scoreStatus()).isEqualTo(ScoreStatus.CALCULATED);
         assertThat(response.items()).hasSize(3);
-        assertThat(response.items().get(0).downloadUrl()).isNotNull();
 
         verify(outfitRepository).save(any(Outfit.class));
     }
 
     @Test
-    @DisplayName("saveOutfit: successfully saves 4-piece outfit with optional outerwear")
-    void saveOutfit_success_withOuterwear() {
-        List<UUID> itemIds = List.of(topItem.getId(), bottomItem.getId(), footwearItem.getId(), outerwearItem.getId());
+    @DisplayName("saveOutfit: user curated outfit violating occasion gates receives CUSTOM status and null score")
+    void saveOutfit_customCurated_nullScore() {
+        List<UUID> itemIds = List.of(topItem.getId(), bottomItem.getId(), footwearItem.getId());
         SaveOutfitRequestDto request = new SaveOutfitRequestDto(
             itemIds,
-            Occasion.SMART_CASUAL,
-            TemperatureBracket.COOL,
-            WeatherCondition.SUNNY,
-            "Layered with blazer.",
-            95
+            Occasion.FORMAL, // Casual pieces for formal occasion
+            null,
+            null,
+            null,
+            null
         );
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
-        when(wardrobeItemRepository.findAllById(itemIds)).thenReturn(List.of(topItem, bottomItem, footwearItem, outerwearItem));
+        when(wardrobeItemRepository.findAllById(itemIds)).thenReturn(List.of(topItem, bottomItem, footwearItem));
+        when(stylePreferencesRepository.findByUserId(userId)).thenReturn(Optional.empty());
+        when(outfitScoringEngine.scoreOutfit(any(), eq(Occasion.FORMAL), any(), any(), any(), any()))
+            .thenReturn(Optional.empty()); // Gate rejection
+
         when(outfitRepository.save(any(Outfit.class))).thenAnswer(inv -> {
             Outfit o = inv.getArgument(0);
             o.setId(UUID.randomUUID());
@@ -201,7 +242,10 @@ class OutfitPersistenceServiceImplTest {
         });
 
         SavedOutfitResponseDto response = outfitPersistenceService.saveOutfit(userId, request);
-        assertThat(response.items()).hasSize(4);
+
+        assertThat(response.suitabilityScore()).isNull();
+        assertThat(response.scoreStatus()).isEqualTo(ScoreStatus.CUSTOM);
+        assertThat(response.stylingRationale()).contains("Custom curated");
     }
 
     @Test
@@ -214,22 +258,97 @@ class OutfitPersistenceServiceImplTest {
             null,
             null,
             null,
-            80
+            null
         );
 
         assertThatThrownBy(() -> outfitPersistenceService.saveOutfit(userId, request))
             .isInstanceOf(GroomAiException.class)
-            .hasMessageContaining("duplicate wardrobe items")
-            .matches(e -> ((GroomAiException) e).getHttpStatus() == HttpStatus.BAD_REQUEST);
+            .hasMessageContaining("duplicate wardrobe items");
     }
 
     @Test
-    @DisplayName("saveOutfit: rejects missing core categories (e.g. missing FOOTWEAR)")
-    void saveOutfit_rejectsMissingCoreCategory() {
+    @DisplayName("saveOutfit: rejects request with invalid item count (< 3 or > 5)")
+    void saveOutfit_rejectsInvalidItemCount() {
+        List<UUID> itemIds = List.of(topItem.getId(), bottomItem.getId());
+        SaveOutfitRequestDto request = new SaveOutfitRequestDto(
+            itemIds,
+            Occasion.CASUAL,
+            null,
+            null,
+            null,
+            null
+        );
+
+        assertThatThrownBy(() -> outfitPersistenceService.saveOutfit(userId, request))
+            .isInstanceOf(GroomAiException.class)
+            .hasMessageContaining("between 3 and 5 items");
+    }
+
+    @Test
+    @DisplayName("saveOutfit: rejects items belonging to another user (security tenant isolation)")
+    void saveOutfit_rejectsUnauthorizedItems() {
+        User otherUser = User.builder().id(UUID.randomUUID()).email("intruder@groomai.com").build();
+        WardrobeItem foreignItem = WardrobeItem.builder()
+            .id(UUID.randomUUID())
+            .user(otherUser)
+            .category(Category.FOOTWEAR)
+            .status(ItemStatus.ACTIVE)
+            .build();
+
+        List<UUID> itemIds = List.of(topItem.getId(), bottomItem.getId(), foreignItem.getId());
+        SaveOutfitRequestDto request = new SaveOutfitRequestDto(
+            itemIds,
+            Occasion.CASUAL,
+            null,
+            null,
+            null,
+            null
+        );
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(wardrobeItemRepository.findAllById(itemIds)).thenReturn(List.of(topItem, bottomItem, foreignItem));
+
+        assertThatThrownBy(() -> outfitPersistenceService.saveOutfit(userId, request))
+            .isInstanceOf(GroomAiException.class)
+            .hasMessageContaining("You do not own all submitted wardrobe items")
+            .matches(ex -> ((GroomAiException) ex).getHttpStatus() == HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("saveOutfit: rejects inactive or archived items")
+    void saveOutfit_rejectsInactiveItem() {
+        WardrobeItem archivedBottom = WardrobeItem.builder()
+            .id(UUID.randomUUID())
+            .user(testUser)
+            .name("Old Chinos")
+            .category(Category.BOTTOM)
+            .status(ItemStatus.ARCHIVED)
+            .build();
+
+        List<UUID> itemIds = List.of(topItem.getId(), archivedBottom.getId(), footwearItem.getId());
+        SaveOutfitRequestDto request = new SaveOutfitRequestDto(
+            itemIds,
+            Occasion.CASUAL,
+            null,
+            null,
+            null,
+            null
+        );
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        when(wardrobeItemRepository.findAllById(itemIds)).thenReturn(List.of(topItem, archivedBottom, footwearItem));
+
+        assertThatThrownBy(() -> outfitPersistenceService.saveOutfit(userId, request))
+            .isInstanceOf(GroomAiException.class)
+            .hasMessageContaining("Cannot add inactive or archived item");
+    }
+
+    @Test
+    @DisplayName("saveOutfit: rejects invalid composition (e.g., missing footwear, 2 tops)")
+    void saveOutfit_rejectsInvalidComposition() {
         WardrobeItem secondTop = WardrobeItem.builder()
             .id(UUID.randomUUID())
             .user(testUser)
-            .name("White Tee")
             .category(Category.TOP)
             .status(ItemStatus.ACTIVE)
             .build();
@@ -241,7 +360,7 @@ class OutfitPersistenceServiceImplTest {
             null,
             null,
             null,
-            80
+            null
         );
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
@@ -249,64 +368,11 @@ class OutfitPersistenceServiceImplTest {
 
         assertThatThrownBy(() -> outfitPersistenceService.saveOutfit(userId, request))
             .isInstanceOf(GroomAiException.class)
-            .hasMessageContaining("exactly one Top, one Bottom, and one Footwear");
+            .hasMessageContaining("Outfit must contain exactly one Top, one Bottom, and one Footwear");
     }
 
     @Test
-    @DisplayName("saveOutfit: rejects wardrobe items belonging to another user")
-    void saveOutfit_rejectsAnotherUsersItem() {
-        User otherUser = User.builder().id(UUID.randomUUID()).email("other@groomai.com").build();
-        WardrobeItem alienItem = WardrobeItem.builder()
-            .id(UUID.randomUUID())
-            .user(otherUser)
-            .name("Stolen Jacket")
-            .category(Category.OUTERWEAR)
-            .status(ItemStatus.ACTIVE)
-            .build();
-
-        List<UUID> itemIds = List.of(topItem.getId(), bottomItem.getId(), footwearItem.getId(), alienItem.getId());
-        SaveOutfitRequestDto request = new SaveOutfitRequestDto(
-            itemIds,
-            Occasion.CASUAL,
-            null,
-            null,
-            null,
-            80
-        );
-
-        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
-        when(wardrobeItemRepository.findAllById(itemIds)).thenReturn(List.of(topItem, bottomItem, footwearItem, alienItem));
-
-        assertThatThrownBy(() -> outfitPersistenceService.saveOutfit(userId, request))
-            .isInstanceOf(GroomAiException.class)
-            .hasMessageContaining("do not own all submitted wardrobe items")
-            .matches(e -> ((GroomAiException) e).getHttpStatus() == HttpStatus.FORBIDDEN);
-    }
-
-    @Test
-    @DisplayName("saveOutfit: rejects inactive or archived items")
-    void saveOutfit_rejectsArchivedItem() {
-        topItem.setStatus(ItemStatus.ARCHIVED);
-        List<UUID> itemIds = List.of(topItem.getId(), bottomItem.getId(), footwearItem.getId());
-        SaveOutfitRequestDto request = new SaveOutfitRequestDto(
-            itemIds,
-            Occasion.CASUAL,
-            null,
-            null,
-            null,
-            80
-        );
-
-        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
-        when(wardrobeItemRepository.findAllById(itemIds)).thenReturn(List.of(topItem, bottomItem, footwearItem));
-
-        assertThatThrownBy(() -> outfitPersistenceService.saveOutfit(userId, request))
-            .isInstanceOf(GroomAiException.class)
-            .hasMessageContaining("inactive or archived item");
-    }
-
-    @Test
-    @DisplayName("logOutfitWear: successfully logs wear event for authenticated outfit")
+    @DisplayName("logOutfitWear: atomic insertWearLogIdempotent records wear event successfully")
     void logOutfitWear_success() {
         UUID outfitId = UUID.randomUUID();
         Outfit outfit = Outfit.builder()
@@ -315,18 +381,15 @@ class OutfitPersistenceServiceImplTest {
             .occasion(Occasion.SMART_CASUAL)
             .stylingRationale("Classic look")
             .suitabilityScore(90)
+            .scoreStatus(ScoreStatus.CALCULATED)
             .build();
 
-        LocalDate today = LocalDate.now();
-        LogOutfitWearRequestDto request = new LogOutfitWearRequestDto(today, "Client pitch meeting");
+        LocalDate today = LocalDate.now(java.time.ZoneOffset.UTC);
+        LogOutfitWearRequestDto request = new LogOutfitWearRequestDto(today, "Client pitch meeting", "UTC");
 
         when(outfitRepository.findByIdAndUserId(outfitId, userId)).thenReturn(Optional.of(outfit));
-        when(outfitWearLogRepository.existsByUserIdAndOutfitIdAndWornDate(userId, outfitId, today)).thenReturn(false);
-        when(outfitWearLogRepository.save(any(OutfitWearLog.class))).thenAnswer(inv -> {
-            OutfitWearLog owl = inv.getArgument(0);
-            owl.setId(UUID.randomUUID());
-            return owl;
-        });
+        when(outfitWearLogRepository.insertWearLogIdempotent(any(), eq(userId), eq(outfitId), eq(today), eq("Client pitch meeting"), any(), anyString()))
+            .thenReturn(1);
 
         LogOutfitWearResponseDto response = outfitPersistenceService.logOutfitWear(userId, outfitId, request);
 
@@ -334,121 +397,106 @@ class OutfitPersistenceServiceImplTest {
         assertThat(response.wornDate()).isEqualTo(today);
         assertThat(response.message()).contains("successfully logged");
 
-        verify(outfitWearLogRepository).save(any(OutfitWearLog.class));
+        verify(outfitWearLogRepository).insertWearLogIdempotent(any(), eq(userId), eq(outfitId), eq(today), eq("Client pitch meeting"), any(), anyString());
     }
 
     @Test
-    @DisplayName("logOutfitWear: handles accidental duplicate log on same date idempotently")
+    @DisplayName("logOutfitWear: handles accidental duplicate log on same date idempotently without transaction rollback")
     void logOutfitWear_idempotentDuplicateHandling() {
         UUID outfitId = UUID.randomUUID();
         Outfit outfit = Outfit.builder().id(outfitId).user(testUser).build();
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(java.time.ZoneOffset.UTC);
+
+        UUID existingLogId = UUID.randomUUID();
+        OutfitWearLog existingLog = OutfitWearLog.builder().id(existingLogId).outfit(outfit).wornDate(today).build();
 
         when(outfitRepository.findByIdAndUserId(outfitId, userId)).thenReturn(Optional.of(outfit));
-        when(outfitWearLogRepository.existsByUserIdAndOutfitIdAndWornDate(userId, outfitId, today)).thenReturn(true);
+        when(outfitWearLogRepository.insertWearLogIdempotent(any(), eq(userId), eq(outfitId), eq(today), eq("Repeated tap"), any(), anyString()))
+            .thenReturn(0); // Conflict!
+        when(outfitWearLogRepository.findByUserIdAndOutfitIdAndWornDate(userId, outfitId, today))
+            .thenReturn(Optional.of(existingLog));
 
         LogOutfitWearResponseDto response = outfitPersistenceService.logOutfitWear(
-            userId, outfitId, new LogOutfitWearRequestDto(today, "Repeated tap")
+            userId, outfitId, new LogOutfitWearRequestDto(today, "Repeated tap", "UTC")
         );
 
         assertThat(response.outfitId()).isEqualTo(outfitId);
+        assertThat(response.logId()).isEqualTo(existingLogId);
         assertThat(response.message()).contains("already recorded");
     }
 
     @Test
-    @DisplayName("logOutfitWear: rejects future wear dates")
+    @DisplayName("logOutfitWear: rejects future wear dates based on client timezone")
     void logOutfitWear_rejectsFutureDate() {
         UUID outfitId = UUID.randomUUID();
         Outfit outfit = Outfit.builder().id(outfitId).user(testUser).build();
-        LocalDate futureDate = LocalDate.now().plusDays(5);
+        LocalDate futureDate = LocalDate.now().plusDays(2);
 
         when(outfitRepository.findByIdAndUserId(outfitId, userId)).thenReturn(Optional.of(outfit));
 
         assertThatThrownBy(() -> outfitPersistenceService.logOutfitWear(
-            userId, outfitId, new LogOutfitWearRequestDto(futureDate, "Future")
+            userId, outfitId, new LogOutfitWearRequestDto(futureDate, "Future", "UTC")
         ))
             .isInstanceOf(GroomAiException.class)
             .hasMessageContaining("future dates");
     }
 
     @Test
-    @DisplayName("logOutfitWear: rejects logging wear for non-existent or other user's outfit")
-    void logOutfitWear_notFoundOrOtherUser() {
+    @DisplayName("getWearHistory: accurately maps from immutable snapshot even if wardrobe items are deleted")
+    void getWearHistory_fromImmutableSnapshot_deletedItem() {
         UUID outfitId = UUID.randomUUID();
-        when(outfitRepository.findByIdAndUserId(outfitId, userId)).thenReturn(Optional.empty());
+        UUID deletedItemId = UUID.randomUUID();
 
-        assertThatThrownBy(() -> outfitPersistenceService.logOutfitWear(userId, outfitId, null))
-            .isInstanceOf(GroomAiException.class)
-            .matches(e -> ((GroomAiException) e).getHttpStatus() == HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    @DisplayName("getWearHistory: retrieves historical wear logs and handles deleted wardrobe items gracefully")
-    void getWearHistory_withDeletedItemGracefulFallback() {
-        UUID outfitId = UUID.randomUUID();
-        Outfit outfit = Outfit.builder()
-            .id(outfitId)
-            .user(testUser)
-            .occasion(Occasion.SMART_CASUAL)
-            .stylingRationale("Saved look")
-            .suitabilityScore(88)
-            .items(new ArrayList<>())
-            .build();
-
-        // One item still exists, one was deleted (wardrobeItem is null)
-        outfit.addItem(OutfitItem.builder().outfit(outfit).wardrobeItem(topItem).itemRole("TOP").build());
-        outfit.addItem(OutfitItem.builder().outfit(outfit).wardrobeItem(null).itemRole("BOTTOM").build());
-
-        OutfitWearLog logEntry = OutfitWearLog.builder()
-            .id(UUID.randomUUID())
-            .user(testUser)
-            .outfit(outfit)
-            .wornDate(LocalDate.now().minusDays(2))
-            .notes("Nice dinner")
-            .build();
-
-        Pageable pageable = PageRequest.of(0, 10);
-        when(outfitWearLogRepository.findByUserId(userId, pageable))
-            .thenReturn(new PageImpl<>(List.of(logEntry), pageable, 1));
-
-        Page<OutfitWearHistoryDto> historyPage = outfitPersistenceService.getWearHistory(userId, pageable);
-
-        assertThat(historyPage.getContent()).hasSize(1);
-        OutfitWearHistoryDto item = historyPage.getContent().get(0);
-        assertThat(item.outfitId()).isEqualTo(outfitId);
-        assertThat(item.items()).hasSize(2);
-        assertThat(item.items().get(0).name()).isEqualTo("Navy Oxford Shirt");
-        assertThat(item.items().get(1).name()).isEqualTo("[Removed Item]");
-    }
-
-    @Test
-    @DisplayName("getRecentItemWearDays: calculates days since last worn correctly for scoring engine")
-    void getRecentItemWearDays_calculatesDays() {
-        UUID itemId1 = UUID.randomUUID();
-        UUID itemId2 = UUID.randomUUID();
-        LocalDate today = LocalDate.now();
-
-        List<Object[]> queryResults = List.of(
-            new Object[]{itemId1, today},
-            new Object[]{itemId2, today.minusDays(3)}
+        WearLogSnapshot.WearLogItemSnapshot itemSnapshot = new WearLogSnapshot.WearLogItemSnapshot(
+            deletedItemId,
+            "TOP",
+            Category.TOP,
+            "Oxford Shirt",
+            Color.NAVY,
+            null,
+            Pattern.SOLID,
+            "Cotton",
+            "Brooks Brothers",
+            "wardrobe/old-key.jpg"
         );
 
-        when(outfitWearLogRepository.findLatestWornDatesByUserId(userId)).thenReturn(queryResults);
+        WearLogSnapshot snapshot = new WearLogSnapshot(
+            1,
+            outfitId,
+            "Navy Classic",
+            Occasion.SMART_CASUAL,
+            TemperatureBracket.MILD,
+            WeatherCondition.SUNNY,
+            "Classic navy pairing",
+            90,
+            ScoreStatus.CALCULATED,
+            List.of(itemSnapshot)
+        );
 
-        Map<UUID, Integer> map = outfitPersistenceService.getRecentItemWearDays(userId);
+        OutfitWearLog log = OutfitWearLog.builder()
+            .id(UUID.randomUUID())
+            .wornDate(LocalDate.now().minusDays(3))
+            .notes("Wore to anniversary")
+            .snapshot(snapshot)
+            .build();
 
-        assertThat(map).hasSize(2);
-        assertThat(map.get(itemId1)).isEqualTo(0);
-        assertThat(map.get(itemId2)).isEqualTo(3);
-    }
+        Page<OutfitWearLog> page = new PageImpl<>(List.of(log), PageRequest.of(0, 10), 1);
+        when(outfitWearLogRepository.findByUserId(eq(userId), any(Pageable.class))).thenReturn(page);
+        when(wardrobeItemRepository.findById(deletedItemId)).thenReturn(Optional.empty()); // Item deleted!
 
-    @Test
-    @DisplayName("getRecentItemWearDays: returns empty map when user has no wear logs (zero penalty)")
-    void getRecentItemWearDays_emptyWhenNoLogs() {
-        when(outfitWearLogRepository.findLatestWornDatesByUserId(userId)).thenReturn(Collections.emptyList());
+        Page<OutfitWearHistoryDto> result = outfitPersistenceService.getWearHistory(userId, PageRequest.of(0, 10));
 
-        Map<UUID, Integer> map = outfitPersistenceService.getRecentItemWearDays(userId);
+        assertThat(result.getContent()).hasSize(1);
+        OutfitWearHistoryDto dto = result.getContent().get(0);
+        assertThat(dto.outfitName()).isEqualTo("Navy Classic");
+        assertThat(dto.suitabilityScore()).isEqualTo(90);
+        assertThat(dto.scoreStatus()).isEqualTo(ScoreStatus.CALCULATED);
+        assertThat(dto.items()).hasSize(1);
 
-        assertThat(map).isEmpty();
+        var firstItem = dto.items().get(0);
+        assertThat(firstItem.category()).isEqualTo(Category.TOP);
+        assertThat(firstItem.primaryColor()).isEqualTo(Color.NAVY);
+        assertThat(firstItem.name()).isEqualTo("Oxford Shirt");
+        assertThat(firstItem.downloadUrl()).isNull(); // Image is null since item was deleted, but all snapshot metadata is preserved!
     }
 }

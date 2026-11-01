@@ -173,7 +173,9 @@ export function OutfitProvider({
       }
       setSavingOutfitId(outfit.id);
       try {
-        const itemIds = outfit.items.map((i) => i.id);
+        const itemIds: readonly string[] = outfit.items
+          .map((i) => i.id)
+          .filter((id): id is string => Boolean(id));
         const payload = {
           itemIds,
           occasion: outfit.occasion,

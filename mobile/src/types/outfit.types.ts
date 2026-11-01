@@ -27,17 +27,19 @@ export type WeatherCondition = 'SUNNY' | 'RAINY' | 'WINDY' | 'SNOWY';
 
 export type OutfitRole = 'TOP' | 'BOTTOM' | 'FOOTWEAR' | 'OUTERWEAR' | 'ACCESSORY';
 
+export type ScoreStatus = 'CALCULATED' | 'CUSTOM' | 'UNSCORED';
+
 export interface OutfitItemDto {
   readonly role: string;
-  readonly id: string;
+  readonly id: string | null;
   readonly name: string;
-  readonly category: Category;
-  readonly primaryColor: Color;
+  readonly category: Category | null;
+  readonly primaryColor: Color | null;
   readonly secondaryColor: Color | null;
-  readonly pattern: Pattern;
-  readonly formalityLevel: FormalityLevel;
-  readonly season: Season;
-  readonly downloadUrl: string;
+  readonly pattern: Pattern | null;
+  readonly formalityLevel?: FormalityLevel | null;
+  readonly season?: Season | null;
+  readonly downloadUrl: string | null;
 }
 
 export interface ScoreBreakdownDto {
@@ -83,17 +85,20 @@ export interface SaveOutfitRequestPayload {
   readonly occasion: Occasion;
   readonly temperatureBracket?: TemperatureBracket | null;
   readonly weatherCondition?: WeatherCondition | null;
+  readonly name?: string | null;
   readonly stylingRationale?: string;
-  readonly suitabilityScore?: number;
+  readonly suitabilityScore?: number | null;
 }
 
 export interface SavedOutfitResponseDto {
   readonly id: string;
+  readonly name?: string | null;
   readonly occasion: Occasion;
   readonly temperatureBracket?: TemperatureBracket | null;
   readonly weatherCondition?: WeatherCondition | null;
   readonly stylingRationale: string;
-  readonly suitabilityScore: number;
+  readonly suitabilityScore: number | null;
+  readonly scoreStatus?: ScoreStatus;
   readonly createdAt: string;
   readonly items: readonly OutfitItemDto[];
 }
@@ -101,6 +106,7 @@ export interface SavedOutfitResponseDto {
 export interface LogOutfitWearPayload {
   readonly wornDate?: string;
   readonly notes?: string;
+  readonly timezone?: string;
 }
 
 export interface LogOutfitWearResponseDto {
@@ -113,11 +119,13 @@ export interface LogOutfitWearResponseDto {
 export interface OutfitWearHistoryDto {
   readonly logId: string;
   readonly outfitId: string | null;
+  readonly outfitName?: string | null;
   readonly wornDate: string;
   readonly notes: string | null;
   readonly createdAt: string;
   readonly occasion: Occasion | null;
   readonly suitabilityScore: number | null;
+  readonly scoreStatus?: ScoreStatus;
   readonly stylingRationale: string;
   readonly items: readonly OutfitItemDto[];
 }
