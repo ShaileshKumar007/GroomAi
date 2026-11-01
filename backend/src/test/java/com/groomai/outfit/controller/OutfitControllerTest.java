@@ -369,4 +369,60 @@ class OutfitControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content").isArray());
     }
+
+    @Test
+    @DisplayName("Log outfit wear with X-Timezone header: POST /api/v1/outfits/{id}/wear passes timezone to service")
+    void testLogOutfitWearWithTimezoneHeader() throws Exception {
+        UUID outfitId = UUID.randomUUID();
+        UUID logId = UUID.randomUUID();
+        java.time.LocalDate today = java.time.LocalDate.now();
+
+        LogOutfitWearResponseDto response = new LogOutfitWearResponseDto(
+            logId,
+            outfitId,
+            today,
+            "Outfit wear successfully logged."
+        );
+
+        when(outfitPersistenceService.logOutfitWear(eq(userId), eq(outfitId), any(LogOutfitWearRequestDto.class)))
+            .thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/outfits/" + outfitId + "/wear")
+                .header("Authorization", "Bearer " + jwtToken)
+                .header("X-Timezone", "America/New_York")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"wornDate\": \"" + today + "\", \"notes\": \"NY trip\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.logId").value(logId.toString()));
+    }
+
+    @Test
+    @DisplayName("Save custom outfit with null score: POST /api/v1/outfits returns CUSTOM scoreStatus")
+    void testSaveCustomOutfitNullScore() throws Exception {
+        UUID outfitId = UUID.randomUUID();
+        SavedOutfitResponseDto responseDto = new SavedOutfitResponseDto(
+            outfitId,
+            "My Custom Outfit",
+            Occasion.CASUAL,
+            null,
+            null,
+            "User curated",
+            null,
+            com.groomai.outfit.enums.ScoreStatus.CUSTOM,
+            java.time.Instant.now(),
+            List.of()
+        );
+
+        when(outfitPersistenceService.saveOutfit(eq(userId), any(SaveOutfitRequestDto.class)))
+            .thenReturn(responseDto);
+
+        mockMvc.perform(post("/api/v1/outfits")
+                .header("Authorization", "Bearer " + jwtToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"occasion\": \"CASUAL\", \"name\": \"My Custom Outfit\", \"itemIds\": [\"" + UUID.randomUUID() + "\", \"" + UUID.randomUUID() + "\", \"" + UUID.randomUUID() + "\"]}"))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.name").value("My Custom Outfit"))
+            .andExpect(jsonPath("$.scoreStatus").value("CUSTOM"))
+            .andExpect(jsonPath("$.suitabilityScore").doesNotExist());
+    }
 }

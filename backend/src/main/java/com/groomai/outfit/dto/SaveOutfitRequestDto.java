@@ -23,7 +23,21 @@ public record SaveOutfitRequestDto(
     TemperatureBracket temperatureBracket,
     WeatherCondition weatherCondition,
 
+    @Size(max = 100, message = "Outfit name must not exceed 100 characters")
+    String name,
+
     String stylingRationale,
 
     Integer suitabilityScore
-) {}
+) {
+    public SaveOutfitRequestDto(
+        List<UUID> itemIds,
+        Occasion occasion,
+        TemperatureBracket temperatureBracket,
+        WeatherCondition weatherCondition,
+        String stylingRationale,
+        Integer suitabilityScore
+    ) {
+        this(itemIds, occasion, temperatureBracket, weatherCondition, null, stylingRationale, suitabilityScore);
+    }
+}

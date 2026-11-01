@@ -49,6 +49,9 @@ public class Outfit {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Column(name = "name", length = 100)
+    private String name;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "occasion", nullable = false, length = 50)
     private Occasion occasion;
@@ -64,8 +67,13 @@ public class Outfit {
     @Column(name = "styling_rationale", nullable = false, columnDefinition = "TEXT")
     private String stylingRationale;
 
-    @Column(name = "suitability_score", nullable = false)
-    private int suitabilityScore;
+    @Column(name = "suitability_score")
+    private Integer suitabilityScore;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "score_status", nullable = false, length = 32)
+    @Builder.Default
+    private com.groomai.outfit.enums.ScoreStatus scoreStatus = com.groomai.outfit.enums.ScoreStatus.UNSCORED;
 
     @OneToMany(mappedBy = "outfit", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

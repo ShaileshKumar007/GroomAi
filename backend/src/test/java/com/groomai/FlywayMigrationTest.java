@@ -80,7 +80,7 @@ class FlywayMigrationTest {
 
     @Test
     @EnabledIf("isDockerAvailable")
-    @DisplayName("Fresh database: V1 and V2 migrations execute cleanly and create all 18 tables")
+    @DisplayName("Fresh database: V1, V2, and V3 migrations execute cleanly and create all 18 tables")
     void testFlywayMigrationOnFreshPostgres() throws Exception {
         try (PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
                 .withDatabaseName("groomai_test")
@@ -96,7 +96,7 @@ class FlywayMigrationTest {
                 .load();
 
             int migrationsExecuted = flyway.migrate().migrationsExecuted;
-            assertThat(migrationsExecuted).isEqualTo(2);
+            assertThat(migrationsExecuted).isEqualTo(3);
 
             List<String> tables = queryBaseTables(postgres);
             assertThat(tables).containsExactlyInAnyOrder(EXPECTED_V2_TABLES);
@@ -109,12 +109,25 @@ class FlywayMigrationTest {
                 "ai_styling_consent_granted",
                 "ai_styling_consent_granted_at"
             );
+
+            // Verify columns added in V3
+            List<String> outfitColumns = queryColumns(postgres, "outfits");
+            assertThat(outfitColumns).contains("name", "score_status", "suitability_score");
+
+            List<String> outfitItemColumns = queryColumns(postgres, "outfit_items");
+            assertThat(outfitItemColumns).contains(
+                "category", "subcategory", "primary_color", "secondary_color",
+                "pattern", "fabric", "brand", "original_storage_key"
+            );
+
+            List<String> wearLogColumns = queryColumns(postgres, "outfit_wear_logs");
+            assertThat(wearLogColumns).contains("snapshot");
         }
     }
 
     @Test
     @EnabledIf("isDockerAvailable")
-    @DisplayName("Incremental migration: V2 successfully applies on top of existing Phase 1 database")
+    @DisplayName("Incremental migration: V2 and V3 successfully apply on top of existing Phase 1 database")
     void testFlywayIncrementalMigrationFromPhase1() throws Exception {
         try (PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
                 .withDatabaseName("groomai_test")
@@ -149,14 +162,28 @@ class FlywayMigrationTest {
             List<String> upgradedTables = queryBaseTables(postgres);
             assertThat(upgradedTables).containsExactlyInAnyOrder(EXPECTED_V2_TABLES);
 
-            // Verify altered user_profiles table structure
-            List<String> userProfileColumns = queryColumns(postgres, "user_profiles");
-            assertThat(userProfileColumns).contains(
-                "wardrobe_storage_consent_granted",
-                "wardrobe_storage_consent_granted_at",
-                "ai_styling_consent_granted",
-                "ai_styling_consent_granted_at"
+            // 3. Migrate V3 on top of existing Phase 2 database
+            Flyway flywayV3 = Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .locations("classpath:db/migration")
+                .target("3")
+                .load();
+
+            int v3Migrations = flywayV3.migrate().migrationsExecuted;
+            assertThat(v3Migrations).isEqualTo(1);
+
+            // Verify V3 altered structure
+            List<String> outfitColumns = queryColumns(postgres, "outfits");
+            assertThat(outfitColumns).contains("name", "score_status", "suitability_score");
+
+            List<String> outfitItemColumns = queryColumns(postgres, "outfit_items");
+            assertThat(outfitItemColumns).contains(
+                "category", "subcategory", "primary_color", "secondary_color",
+                "pattern", "fabric", "brand", "original_storage_key"
             );
+
+            List<String> wearLogColumns = queryColumns(postgres, "outfit_wear_logs");
+            assertThat(wearLogColumns).contains("snapshot");
         }
     }
 

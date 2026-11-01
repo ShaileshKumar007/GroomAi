@@ -12,7 +12,7 @@ import {
 import { getStoredTokens } from '../utils/storage';
 
 export interface AuthenticatedImageProps {
-  readonly uri: string;
+  readonly uri: string | null | undefined;
   readonly style?: StyleProp<ImageStyle>;
   readonly resizeMode?: ImageResizeMode;
   readonly accessibilityLabel?: string;
@@ -50,10 +50,12 @@ export function AuthenticatedImage({
       return;
     }
 
+    const targetUri: string = uri.trim();
+
     async function prepareImageSource() {
       // Determine if the URL targets the local backend storage endpoint
       const isLocalStorage =
-        uri.includes('/storage/files/') || uri.includes('/api/v1/storage/');
+        targetUri.includes('/storage/files/') || targetUri.includes('/api/v1/storage/');
 
       if (isLocalStorage) {
         try {
@@ -61,24 +63,24 @@ export function AuthenticatedImage({
           if (isMounted) {
             if (tokens?.accessToken) {
               setResolvedSource({
-                uri,
+                uri: targetUri,
                 headers: {
                   Authorization: `Bearer ${tokens.accessToken}`,
                 },
               });
             } else {
-              setResolvedSource({ uri });
+              setResolvedSource({ uri: targetUri });
             }
           }
         } catch {
           if (isMounted) {
-            setResolvedSource({ uri });
+            setResolvedSource({ uri: targetUri });
           }
         }
       } else {
         // External cloud storage (e.g. S3 Pre-signed): never pass Bearer tokens
         if (isMounted) {
-          setResolvedSource({ uri });
+          setResolvedSource({ uri: targetUri });
         }
       }
     }

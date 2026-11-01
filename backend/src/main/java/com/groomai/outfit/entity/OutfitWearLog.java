@@ -51,6 +51,10 @@ public class OutfitWearLog {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "snapshot", columnDefinition = "jsonb")
+    private com.groomai.outfit.model.WearLogSnapshot snapshot;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();

@@ -10,5 +10,10 @@ import java.time.LocalDate;
 public record LogOutfitWearRequestDto(
     LocalDate wornDate,
     @Size(max = 500, message = "Notes must not exceed 500 characters")
-    String notes
-) {}
+    String notes,
+    String timezone
+) {
+    public LogOutfitWearRequestDto(LocalDate wornDate, String notes) {
+        this(wornDate, notes, null);
+    }
+}

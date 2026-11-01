@@ -138,17 +138,19 @@ export default function OutfitDetailScreen(): React.JSX.Element {
             Outfit Composition ({outfit.items.length} Items)
           </Text>
 
-          {outfit.items.map((item: OutfitItemDto) => {
-            const primaryHex = COLOR_HEX_MAP[item.primaryColor] || '#94A3B8';
+          {outfit.items.map((item: OutfitItemDto, idx: number) => {
+            const primaryHex = (item.primaryColor && COLOR_HEX_MAP[item.primaryColor]) || '#94A3B8';
             const secondaryHex = item.secondaryColor
               ? COLOR_HEX_MAP[item.secondaryColor] || '#94A3B8'
               : null;
 
+            const itemKey = item.id || `${item.role}-${idx}`;
+
             return (
               <View
-                key={item.id}
+                key={itemKey}
                 style={styles.garmentCard}
-                testID={`detail-garment-card-${item.id}`}
+                testID={`detail-garment-card-${item.id || idx}`}
               >
                 <View style={styles.garmentImageContainer}>
                   <AuthenticatedImage

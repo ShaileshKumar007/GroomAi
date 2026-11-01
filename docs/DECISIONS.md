@@ -19,6 +19,7 @@
 - [ADR-009: API Error Handling Contract & Observability Standards](#adr-009-api-error-handling-contract--observability-standards) (Status: **Accepted Baseline**)
 - [ADR-010: Account & Photo Deletion Strategy, Foreign Key Decoupling, and Storage Outbox](#adr-010-account--photo-deletion-strategy-foreign-key-decoupling-and-storage-outbox) (Status: **Accepted Schema (V1 Migration); Proposed Worker Implementation**)
 - [ADR-011: Pivot to Wardrobe-First AI Stylist & Hybrid Recommendation Architecture](#adr-011-pivot-to-wardrobe-first-ai-stylist--hybrid-recommendation-architecture) (Status: **Accepted Baseline**)
+- [ADR-012: Historical Data Integrity, Immutable Garment Snapshots, and Idempotent Wear Logging](#adr-012-historical-data-integrity-immutable-garment-snapshots-and-idempotent-wear-logging) (Status: **Accepted Baseline (Stage 4C.2.1)**)
 
 ---
 
@@ -396,3 +397,25 @@
   - *Positive:* Instantaneous sub-10ms response times; zero unowned item hallucinations; completely unit-testable scoring logic; privacy-preserving offline functionality; clear explainability for users.
   - *Negative:* Users must catalog at least 3 core garments (Top, Bottom, Footwear) before receiving recommendations; rule heuristics require ongoing evaluation and tuning against user feedback.
 
+---
+
+### ADR-0012: Historical Data Integrity, Immutable Garment Snapshots, and Idempotent Wear Logging
+
+- **Status:** **Accepted Baseline (Stage 4C.2.1)**
+- **Context:**
+  Stage 4C.2 introduced outfit persistence and wear logging. However, an architectural audit identified five critical data integrity risks:
+  1. *Historical Data Loss:* When a user deletes or archives a wardrobe item, `outfit_items.wardrobe_item_id` becomes `NULL` via `ON DELETE SET NULL`, resulting in loss of garment attributes (color, pattern, category) and displaying generic `[Removed Item]` labels.
+  2. *Outfit Deletion Loss:* Deleting a saved outfit breaks foreign keys from `outfit_wear_logs`, discarding styling rationale, suitability scores, and occasion context.
+  3. *Client-Score Trust Vulnerability:* Client-submitted scores were accepted directly, permitting arbitrary client manipulation.
+  4. *Concurrent Duplicate Race Condition:* Rapid multi-taps could insert duplicate wear logs for the same outfit and date. Application-level catches of `DataIntegrityViolationException` inside `@Transactional` methods mark Hibernate transactions as rollback-only.
+  5. *Timezone Discrepancies:* Wear logging without explicit timezone evaluation caused date misalignments near midnight UTC boundaries.
+- **Decision:**
+  1. **Immutable Garment Snapshots (`outfit_items`):** Added snapshot columns (`category`, `subcategory`, `primary_color`, `secondary_color`, `pattern`, `fabric`, `brand`, `original_storage_key`) directly to `outfit_items`, populated at save time from active `wardrobe_items`.
+  2. **Versioned JSONB Snapshots (`outfit_wear_logs`):** Added a `snapshot JSONB` column containing a complete `WearLogSnapshot` (version 1) recording occasion, score, rationale, score status, and item snapshots at wear-log insertion time. Historical wear records remain fully renderable even if outfits or garments are subsequently deleted.
+  3. **Authoritative Backend Scoring:** Client-submitted scores are never stored as authoritative. The backend scoring engine evaluates the candidate outfit; if it meets occasion/weather compatibility gates, score is marked `CALCULATED`. If user curation violates compatibility gates, the score is stored as `NULL` with `score_status = 'CUSTOM'`.
+  4. **Atomic Native Idempotent Wear Logging:** Enforce uniqueness via `uq_outfit_wear_logs_user_outfit_date` partial unique index (`WHERE outfit_id IS NOT NULL`). Insertion uses native `INSERT ... ON CONFLICT (user_id, outfit_id, worn_date) DO NOTHING`. If a conflict occurs (0 rows inserted), the service queries and returns the existing record's ID without triggering JDBC constraint exceptions or marking transactions rollback-only.
+  5. **Timezone & Future Date Validation:** Clients transmit local calendar date `YYYY-MM-DD` and IANA timezone (in payload and `X-Timezone` header). The backend evaluates against validated `ZoneId` (falling back to UTC) and strictly rejects dates where `wornDate.isAfter(LocalDate.now(zoneId))`.
+  6. **Reconciliation Flyway Migration (`V3`):** Deduplicates existing wear logs using `ROW_NUMBER() OVER (PARTITION BY user_id, outfit_id, worn_date ORDER BY created_at ASC, id ASC)`, aggregates non-empty notes via `string_agg(DISTINCT TRIM(notes), E'\n---\n')` without truncation into the survivor, deletes rank > 1 duplicates, and applies the partial unique index.
+- **Consequences:**
+  - *Positive:* 100% data preservation across item/outfit lifecycles; zero trust of client scores; race-condition immunity; timezone-accurate wear tracking; non-lossy historical note retention.
+  - *Negative:* Slightly increased database storage footprint due to denormalized snapshots; historical pre-V3 outfits without snapshot backfill lack original image downloads if garments are deleted.

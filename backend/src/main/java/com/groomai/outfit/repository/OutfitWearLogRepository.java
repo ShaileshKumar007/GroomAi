@@ -22,6 +22,26 @@ public interface OutfitWearLogRepository extends JpaRepository<OutfitWearLog, UU
 
     boolean existsByUserIdAndOutfitIdAndWornDate(UUID userId, UUID outfitId, LocalDate wornDate);
 
+    java.util.Optional<OutfitWearLog> findByUserIdAndOutfitIdAndWornDate(UUID userId, UUID outfitId, LocalDate wornDate);
+
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @Query(value = """
+        INSERT INTO outfit_wear_logs (id, user_id, outfit_id, worn_date, notes, created_at, snapshot)
+        VALUES (:id, :userId, :outfitId, :wornDate, :notes, :createdAt, CAST(:snapshotJson AS jsonb))
+        ON CONFLICT (user_id, outfit_id, worn_date) WHERE outfit_id IS NOT NULL
+        DO NOTHING
+    """, nativeQuery = true)
+    int insertWearLogIdempotent(
+        @Param("id") UUID id,
+        @Param("userId") UUID userId,
+        @Param("outfitId") UUID outfitId,
+        @Param("wornDate") LocalDate wornDate,
+        @Param("notes") String notes,
+        @Param("createdAt") java.time.Instant createdAt,
+        @Param("snapshotJson") String snapshotJson
+    );
+
     @Query("""
         SELECT oi.wardrobeItem.id, MAX(owl.wornDate)
         FROM OutfitWearLog owl

@@ -86,11 +86,29 @@ export default function OutfitHistoryScreen(): React.JSX.Element {
     );
   }
 
+function getCategoryPlaceholderIcon(category: string | null | undefined, role: string): string {
+  const cat = category || role;
+  switch (cat?.toUpperCase()) {
+    case 'TOP':
+      return '👕';
+    case 'BOTTOM':
+      return '👖';
+    case 'FOOTWEAR':
+      return '👟';
+    case 'OUTERWEAR':
+      return '🧥';
+    case 'ACCESSORY':
+      return '🕶️';
+    default:
+      return '👔';
+  }
+}
+
   const renderWearItem = ({ item }: { item: OutfitWearHistoryDto }) => {
-    const scoreColor =
-      item.suitabilityScore !== null && item.suitabilityScore !== undefined
-        ? getScoreColor(item.suitabilityScore)
-        : '#94A3B8';
+    const hasNumericScore = item.suitabilityScore !== null && item.suitabilityScore !== undefined;
+    const scoreColor = hasNumericScore
+      ? getScoreColor(item.suitabilityScore as number)
+      : '#94A3B8';
 
     return (
       <View style={styles.wearCard} testID={`wear-log-card-${item.logId}`}>
@@ -108,15 +126,30 @@ export default function OutfitHistoryScreen(): React.JSX.Element {
               </View>
             )}
 
-            {item.suitabilityScore !== null && item.suitabilityScore !== undefined && (
+            {hasNumericScore ? (
               <View style={[styles.scoreBadge, { borderColor: scoreColor }]}>
                 <Text style={[styles.scoreText, { color: scoreColor }]}>
                   {item.suitabilityScore}
                 </Text>
               </View>
+            ) : (
+              <View style={[styles.scoreBadge, styles.customScoreBadge]}>
+                <Text style={styles.customScoreText}>
+                  {item.scoreStatus === 'CUSTOM' ? 'Custom' : 'Unscored'}
+                </Text>
+              </View>
             )}
           </View>
         </View>
+
+        {/* Outfit Name if available */}
+        {item.outfitName ? (
+          <View style={styles.outfitNameContainer}>
+            <Text style={styles.outfitNameText} numberOfLines={1}>
+              {item.outfitName}
+            </Text>
+          </View>
+        ) : null}
 
         {/* User Notes if present */}
         {item.notes && (
@@ -128,24 +161,38 @@ export default function OutfitHistoryScreen(): React.JSX.Element {
 
         {/* Garment Thumbnails Row */}
         <View style={styles.garmentsRow}>
-          {item.items.map((garment: OutfitItemDto, idx: number) => (
-            <View key={`${garment.id}-${idx}`} style={styles.garmentBox}>
-              <View style={styles.thumbnailContainer}>
-                <AuthenticatedImage
-                  uri={garment.downloadUrl}
-                  style={styles.thumbnail}
-                  testID={`history-garment-img-${garment.id}`}
-                  accessibilityLabel={garment.name}
-                />
-                <View style={styles.roleTag}>
-                  <Text style={styles.roleTagText}>{formatRole(garment.role)}</Text>
+          {item.items.map((garment: OutfitItemDto, idx: number) => {
+            const garmentKey = garment.id ? `${garment.id}-${idx}` : `snapshot-${garment.role}-${idx}`;
+            return (
+              <View key={garmentKey} style={styles.garmentBox}>
+                <View style={styles.thumbnailContainer}>
+                  {garment.downloadUrl ? (
+                    <AuthenticatedImage
+                      uri={garment.downloadUrl}
+                      style={styles.thumbnail}
+                      testID={`history-garment-img-${garment.id || idx}`}
+                      accessibilityLabel={garment.name}
+                    />
+                  ) : (
+                    <View
+                      style={styles.thumbnailPlaceholder}
+                      testID={`history-garment-placeholder-${garment.id || idx}`}
+                    >
+                      <Text style={styles.placeholderIcon}>
+                        {getCategoryPlaceholderIcon(garment.category, garment.role)}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.roleTag}>
+                    <Text style={styles.roleTagText}>{formatRole(garment.role)}</Text>
+                  </View>
                 </View>
+                <Text style={styles.garmentName} numberOfLines={1}>
+                  {garment.name}
+                </Text>
               </View>
-              <Text style={styles.garmentName} numberOfLines={1}>
-                {garment.name}
-              </Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         {/* Styling Rationale if available */}
@@ -342,9 +389,26 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
   },
+  customScoreBadge: {
+    borderColor: '#64748B',
+    borderStyle: 'dashed',
+  },
   scoreText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  customScoreText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  outfitNameContainer: {
+    marginBottom: 8,
+  },
+  outfitNameText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#F1F5F9',
   },
   notesContainer: {
     backgroundColor: '#0F172A',
@@ -384,6 +448,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#334155',
     position: 'relative',
+  },
+  thumbnailPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E293B',
+  },
+  placeholderIcon: {
+    fontSize: 24,
   },
   thumbnail: {
     width: '100%',

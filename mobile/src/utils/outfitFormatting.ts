@@ -136,13 +136,15 @@ export function formatMissingCategories(categories?: readonly string[]): string 
   return `${head}, and ${last}`;
 }
 
-export function getScoreColor(score: number): string {
+export function getScoreColor(score: number | null | undefined): string {
+  if (score === null || score === undefined) return '#94A3B8';
   if (score >= 85) return '#10B981'; // Green
   if (score >= 70) return '#F59E0B'; // Amber
   return '#94A3B8'; // Slate
 }
 
-export function getScoreTier(score: number): string {
+export function getScoreTier(score: number | null | undefined): string {
+  if (score === null || score === undefined) return 'Custom Match';
   if (score >= 90) return 'Exceptional Match';
   if (score >= 80) return 'Great Harmony';
   if (score >= 70) return 'Solid Pairing';

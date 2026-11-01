@@ -524,13 +524,13 @@ List endpoints support pagination:
   {
     "occasion": "SMART_CASUAL",
     "name": "Summer Office Look",
-    "notes": "Classic navy and beige combination",
     "itemIds": [
       "item-1111-2222",
       "item-3333-4444",
       "item-5555-6666"
     ],
-    "suitabilityScore": 88,
+    "temperatureBracket": "MILD",
+    "weatherCondition": "SUNNY",
     "stylingRationale": "Navy and Beige create classic harmony."
   }
   ```
@@ -539,15 +539,14 @@ List endpoints support pagination:
     ```json
     {
       "id": "outfit-9988-7766",
-      "occasion": "SMART_CASUAL",
       "name": "Summer Office Look",
-      "notes": "Classic navy and beige combination",
-      "suitabilityScore": 88,
+      "occasion": "SMART_CASUAL",
+      "temperatureBracket": "MILD",
+      "weatherCondition": "SUNNY",
       "stylingRationale": "Navy and Beige create classic harmony.",
-      "timesWorn": 0,
-      "lastWornAt": null,
+      "suitabilityScore": 88,
+      "scoreStatus": "CALCULATED",
       "createdAt": "2026-10-30T10:00:00Z",
-      "updatedAt": "2026-10-30T10:00:00Z",
       "items": [
         {
           "role": "TOP",
@@ -583,11 +582,13 @@ List endpoints support pagination:
 ### 5.5 Log Outfit as Worn Today
 - **Method & Path:** `POST /api/v1/outfits/{id}/wear`
 - **Authentication:** Bearer Token
+- **Headers:** `X-Timezone` (optional IANA timezone string, e.g. `America/New_York`)
 - **Request Body:**
   ```json
   {
     "wornDate": "2026-10-30",
-    "notes": "Dinner with friends at Italian bistro"
+    "notes": "Dinner with friends at Italian bistro",
+    "timezone": "America/New_York"
   }
   ```
 - **Responses:**
@@ -597,9 +598,10 @@ List endpoints support pagination:
       "logId": "wear-5555-6666",
       "outfitId": "outfit-9988-7766",
       "wornDate": "2026-10-30",
-      "message": "Outfit wear recorded successfully"
+      "message": "Outfit wear successfully logged. Repetition penalty applied for upcoming recommendations."
     }
     ```
+  - `400 Bad Request`: `code: "INVALID_WEAR_DATE"` (Worn date is in the future relative to user timezone).
   - `404 Not Found`: `code: "OUTFIT_NOT_FOUND"`.
 
 ### 5.6 Get Wear History
@@ -614,11 +616,13 @@ List endpoints support pagination:
         {
           "logId": "wear-5555-6666",
           "outfitId": "outfit-9988-7766",
+          "outfitName": "Summer Office Look",
           "wornDate": "2026-10-30",
           "notes": "Dinner with friends at Italian bistro",
           "createdAt": "2026-10-30T19:30:00Z",
           "occasion": "SMART_CASUAL",
           "suitabilityScore": 88,
+          "scoreStatus": "CALCULATED",
           "stylingRationale": "Navy and Beige create classic harmony.",
           "items": [
             {

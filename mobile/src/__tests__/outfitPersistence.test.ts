@@ -246,6 +246,7 @@ describe('Outfit Persistence & Wear History API Client', () => {
       const payload: LogOutfitWearPayload = {
         wornDate: '2026-10-30',
         notes: 'Dinner at Italian bistro',
+        timezone: 'America/New_York',
       };
 
       const result = await apiLogOutfitWear('outfit-saved-123', payload);
@@ -260,12 +261,14 @@ describe('Outfit Persistence & Wear History API Client', () => {
       const call = (global.fetch as jest.Mock).mock.calls[0];
       const headers = call[1].headers;
       const contentType = typeof headers.get === 'function' ? headers.get('Content-Type') : headers['Content-Type'];
+      const tzHeader = typeof headers.get === 'function' ? headers.get('X-Timezone') : headers['X-Timezone'];
       expect(contentType).toBe('application/json');
+      expect(tzHeader).toBe('America/New_York');
       expect(result.logId).toBe('wear-log-456');
       expect(result.wornDate).toBe('2026-10-30');
     });
 
-    it('defaults to empty body when payload is omitted', async () => {
+    it('defaults to device local date and timezone when payload is omitted', async () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -278,9 +281,12 @@ describe('Outfit Persistence & Wear History API Client', () => {
         expect.stringContaining('/outfits/outfit-saved-123/wear'),
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({}),
         })
       );
+      const call = (global.fetch as jest.Mock).mock.calls[0];
+      const sentBody = JSON.parse(call[1].body as string);
+      expect(sentBody.wornDate).toBeDefined();
+      expect(sentBody.timezone).toBeDefined();
       expect(result.logId).toBe('wear-log-456');
     });
   });
