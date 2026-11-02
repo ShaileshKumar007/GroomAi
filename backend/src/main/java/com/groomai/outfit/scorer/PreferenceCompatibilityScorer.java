@@ -206,97 +206,137 @@ public class PreferenceCompatibilityScorer {
 
         return switch (primaryStyle) {
             case CASUAL -> {
-                boolean hasFormalOrBiz = items.stream().anyMatch(i ->
-                    i.getFormalityLevel() == FormalityLevel.BUSINESS_CASUAL || i.getFormalityLevel() == FormalityLevel.FORMAL
-                );
+                boolean hasFormalOrBiz = false;
+                boolean allCasual = true;
+                boolean validPatterns = true;
+                for (WardrobeItem i : items) {
+                    FormalityLevel f = i.getFormalityLevel();
+                    if (f == FormalityLevel.BUSINESS_CASUAL || f == FormalityLevel.FORMAL) {
+                        hasFormalOrBiz = true;
+                    }
+                    if (f != FormalityLevel.CASUAL) {
+                        allCasual = false;
+                    }
+                    Pattern p = i.getPattern();
+                    if (p != null && p != Pattern.SOLID && p != Pattern.STRIPED && p != Pattern.TEXTURED) {
+                        validPatterns = false;
+                    }
+                }
                 if (hasFormalOrBiz) yield -1;
-
-                boolean allCasual = items.stream().allMatch(i -> i.getFormalityLevel() == FormalityLevel.CASUAL);
-                boolean validPatterns = items.stream().allMatch(i ->
-                    i.getPattern() == null || i.getPattern() == Pattern.SOLID || i.getPattern() == Pattern.STRIPED || i.getPattern() == Pattern.TEXTURED
-                );
                 if (allCasual && validPatterns) yield 1;
                 yield 0;
             }
             case SMART_CASUAL -> {
-                boolean hasFormalOrClashPatterns = items.stream().anyMatch(i ->
-                    i.getFormalityLevel() == FormalityLevel.FORMAL || i.getPattern() == Pattern.GRAPHIC || i.getPattern() == Pattern.FLORAL
-                );
+                boolean hasFormalOrClashPatterns = false;
+                boolean hasNeutralAnchor = false;
+                for (WardrobeItem i : items) {
+                    FormalityLevel f = i.getFormalityLevel();
+                    Pattern p = i.getPattern();
+                    if (f == FormalityLevel.FORMAL || p == Pattern.GRAPHIC || p == Pattern.FLORAL) {
+                        hasFormalOrClashPatterns = true;
+                    }
+                    Color pc = i.getPrimaryColor();
+                    Color sc = i.getSecondaryColor();
+                    if ((pc != null && NEUTRAL_ANCHORS.contains(pc)) || (sc != null && NEUTRAL_ANCHORS.contains(sc))) {
+                        hasNeutralAnchor = true;
+                    }
+                }
                 if (hasFormalOrClashPatterns) yield -1;
-
-                boolean isSmartCasualMode = modalFormality == FormalityLevel.SMART_CASUAL;
-                boolean hasNeutralAnchor = items.stream().anyMatch(i ->
-                    (i.getPrimaryColor() != null && NEUTRAL_ANCHORS.contains(i.getPrimaryColor()))
-                        || (i.getSecondaryColor() != null && NEUTRAL_ANCHORS.contains(i.getSecondaryColor()))
-                );
-                if (isSmartCasualMode && hasNeutralAnchor) yield 1;
+                if (modalFormality == FormalityLevel.SMART_CASUAL && hasNeutralAnchor) yield 1;
                 yield 0;
             }
             case MINIMALIST -> {
-                boolean hasNonSolid = items.stream().anyMatch(i -> i.getPattern() != null && i.getPattern() != Pattern.SOLID);
-                boolean hasVibrantAccent = items.stream().anyMatch(i -> {
-                    Color p = i.getPrimaryColor();
-                    Color s = i.getSecondaryColor();
-                    return (p != null && (p == Color.RED || p == Color.YELLOW || p == Color.GREEN || p == Color.BLUE || p == Color.MULTI))
-                        || (s != null && (s == Color.RED || s == Color.YELLOW || s == Color.GREEN || s == Color.BLUE || s == Color.MULTI));
-                });
+                boolean hasNonSolid = false;
+                boolean hasVibrantAccent = false;
+                boolean allNeutral = true;
+                int mutedCount = 0;
+                for (WardrobeItem i : items) {
+                    Pattern p = i.getPattern();
+                    if (p != null && p != Pattern.SOLID) hasNonSolid = true;
+
+                    Color pc = i.getPrimaryColor();
+                    Color sc = i.getSecondaryColor();
+                    if ((pc != null && (pc == Color.RED || pc == Color.YELLOW || pc == Color.GREEN || pc == Color.BLUE || pc == Color.MULTI))
+                        || (sc != null && (sc == Color.RED || sc == Color.YELLOW || sc == Color.GREEN || sc == Color.BLUE || sc == Color.MULTI))) {
+                        hasVibrantAccent = true;
+                    }
+
+                    if (pc == null || !NEUTRAL_PALETTE.contains(pc)) allNeutral = false;
+                    if (pc == Color.OLIVE || pc == Color.BURGUNDY) mutedCount++;
+                }
                 if (hasNonSolid || hasVibrantAccent) yield -1;
-
-                boolean allNeutral = items.stream().allMatch(i -> i.getPrimaryColor() != null && NEUTRAL_PALETTE.contains(i.getPrimaryColor()));
                 if (allNeutral) yield 1;
-
-                long mutedCount = items.stream().filter(i -> i.getPrimaryColor() == Color.OLIVE || i.getPrimaryColor() == Color.BURGUNDY).count();
                 if (mutedCount <= 1) yield 0;
-
                 yield -1;
             }
             case CLASSIC -> {
-                boolean hasClash = items.stream().anyMatch(i ->
-                    i.getPattern() == Pattern.GRAPHIC || i.getPattern() == Pattern.FLORAL || i.getPrimaryColor() == Color.MULTI || i.getSecondaryColor() == Color.MULTI
-                );
-                if (hasClash) yield -1;
-
-                boolean isClassicFormality = modalFormality == FormalityLevel.SMART_CASUAL || modalFormality == FormalityLevel.BUSINESS_CASUAL;
-                boolean validPatterns = items.stream().allMatch(i -> {
+                boolean hasClash = false;
+                boolean validPatterns = true;
+                boolean hasClassicTone = false;
+                for (WardrobeItem i : items) {
                     Pattern p = i.getPattern();
-                    return p == null || p == Pattern.SOLID || p == Pattern.STRIPED || p == Pattern.CHECKED;
-                });
-                boolean hasClassicTone = items.stream().anyMatch(i ->
-                    (i.getPrimaryColor() != null && CLASSIC_PALETTE.contains(i.getPrimaryColor()))
-                        || (i.getSecondaryColor() != null && CLASSIC_PALETTE.contains(i.getSecondaryColor()))
-                );
+                    Color pc = i.getPrimaryColor();
+                    Color sc = i.getSecondaryColor();
+                    if (p == Pattern.GRAPHIC || p == Pattern.FLORAL || pc == Color.MULTI || sc == Color.MULTI) {
+                        hasClash = true;
+                    }
+                    if (p != null && p != Pattern.SOLID && p != Pattern.STRIPED && p != Pattern.CHECKED) {
+                        validPatterns = false;
+                    }
+                    if ((pc != null && CLASSIC_PALETTE.contains(pc)) || (sc != null && CLASSIC_PALETTE.contains(sc))) {
+                        hasClassicTone = true;
+                    }
+                }
+                if (hasClash) yield -1;
+                boolean isClassicFormality = modalFormality == FormalityLevel.SMART_CASUAL || modalFormality == FormalityLevel.BUSINESS_CASUAL;
                 if (isClassicFormality && validPatterns && hasClassicTone) yield 1;
                 yield 0;
             }
             case STREETWEAR -> {
-                boolean hasTailoredPieces = items.stream().anyMatch(i ->
-                    i.getFormalityLevel() == FormalityLevel.BUSINESS_CASUAL || i.getFormalityLevel() == FormalityLevel.FORMAL
-                );
+                boolean hasTailoredPieces = false;
+                boolean allCasual = true;
+                boolean hasStreetAccent = false;
+                for (WardrobeItem i : items) {
+                    FormalityLevel f = i.getFormalityLevel();
+                    if (f == FormalityLevel.BUSINESS_CASUAL || f == FormalityLevel.FORMAL) {
+                        hasTailoredPieces = true;
+                    }
+                    if (f != FormalityLevel.CASUAL) {
+                        allCasual = false;
+                    }
+                    Color pc = i.getPrimaryColor();
+                    Color sc = i.getSecondaryColor();
+                    Pattern p = i.getPattern();
+                    if ((pc != null && STREETWEAR_ACCENTS.contains(pc))
+                        || (sc != null && STREETWEAR_ACCENTS.contains(sc))
+                        || p == Pattern.GRAPHIC || p == Pattern.TEXTURED) {
+                        hasStreetAccent = true;
+                    }
+                }
                 if (hasTailoredPieces) yield -1;
-
-                boolean allCasual = items.stream().allMatch(i -> i.getFormalityLevel() == FormalityLevel.CASUAL);
-                boolean hasStreetAccent = items.stream().anyMatch(i ->
-                    (i.getPrimaryColor() != null && STREETWEAR_ACCENTS.contains(i.getPrimaryColor()))
-                        || (i.getSecondaryColor() != null && STREETWEAR_ACCENTS.contains(i.getSecondaryColor()))
-                        || i.getPattern() == Pattern.GRAPHIC || i.getPattern() == Pattern.TEXTURED
-                );
                 if (allCasual && hasStreetAccent) yield 1;
                 yield 0;
             }
             case PREPPY -> {
-                boolean allBlack = items.stream().allMatch(i -> i.getPrimaryColor() == Color.BLACK);
-                boolean hasGraphic = items.stream().anyMatch(i -> i.getPattern() == Pattern.GRAPHIC);
-                if (allBlack || hasGraphic) yield -1;
-
-                boolean isSmartCasualMode = modalFormality == FormalityLevel.SMART_CASUAL;
-                boolean validPatterns = items.stream().allMatch(i -> {
+                boolean allBlack = true;
+                boolean hasGraphic = false;
+                boolean validPatterns = true;
+                boolean hasPreppyAnchor = false;
+                for (WardrobeItem i : items) {
+                    if (i.getPrimaryColor() != Color.BLACK) allBlack = false;
                     Pattern p = i.getPattern();
-                    return p == null || p == Pattern.STRIPED || p == Pattern.CHECKED || p == Pattern.SOLID;
-                });
-                boolean hasPreppyAnchor = items.stream().anyMatch(i ->
-                    (i.getPrimaryColor() != null && PREPPY_PALETTE.contains(i.getPrimaryColor()))
-                        || (i.getSecondaryColor() != null && PREPPY_PALETTE.contains(i.getSecondaryColor()))
-                );
+                    if (p == Pattern.GRAPHIC) hasGraphic = true;
+                    if (p != null && p != Pattern.STRIPED && p != Pattern.CHECKED && p != Pattern.SOLID) {
+                        validPatterns = false;
+                    }
+                    Color pc = i.getPrimaryColor();
+                    Color sc = i.getSecondaryColor();
+                    if ((pc != null && PREPPY_PALETTE.contains(pc)) || (sc != null && PREPPY_PALETTE.contains(sc))) {
+                        hasPreppyAnchor = true;
+                    }
+                }
+                if (allBlack || hasGraphic) yield -1;
+                boolean isSmartCasualMode = modalFormality == FormalityLevel.SMART_CASUAL;
                 if (isSmartCasualMode && validPatterns && hasPreppyAnchor) yield 1;
                 yield 0;
             }
@@ -330,9 +370,14 @@ public class PreferenceCompatibilityScorer {
         // 2. TRY_NEW_COLORS: S_color >= 28 and contains >= 1 primary color not worn in last 30 days
         if (styleGoals.contains(StyleGoal.TRY_NEW_COLORS.name())) {
             if (colorHarmonyScore >= 28) {
-                boolean hasUnwornColor = items.stream().anyMatch(i ->
-                    i.getPrimaryColor() != null && (recentlyWornColors == null || !recentlyWornColors.contains(i.getPrimaryColor()))
-                );
+                boolean hasUnwornColor = false;
+                for (WardrobeItem i : items) {
+                    Color pc = i.getPrimaryColor();
+                    if (pc != null && (recentlyWornColors == null || !recentlyWornColors.contains(pc))) {
+                        hasUnwornColor = true;
+                        break;
+                    }
+                }
                 if (hasUnwornColor) {
                     qualifying++;
                 }
