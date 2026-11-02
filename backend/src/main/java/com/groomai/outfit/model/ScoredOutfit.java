@@ -1,6 +1,7 @@
 package com.groomai.outfit.model;
 
 import com.groomai.outfit.dto.ScoreBreakdownDto;
+import com.groomai.wardrobe.entity.WardrobeItem;
 
 import java.util.Comparator;
 import java.util.UUID;
@@ -15,7 +16,10 @@ public record ScoredOutfit(
     ScoreBreakdownDto scoreBreakdown,
     String stylingRationale,
     int daysSinceLastWornSum,
-    int formalityDelta
+    int formalityDelta,
+    int neverWornCount,
+    double normalizedDaysSinceLastWorn,
+    boolean hasExpandRotationGoal
 ) {
     public ScoredOutfit(
         CandidateOutfit candidate,
@@ -31,7 +35,34 @@ public record ScoredOutfit(
             scoreBreakdown,
             stylingRationale,
             daysSinceLastWornSum,
-            candidate.getFormalityDelta()
+            candidate.getFormalityDelta(),
+            0,
+            daysSinceLastWornSum,
+            false
+        );
+    }
+
+    public ScoredOutfit(
+        CandidateOutfit candidate,
+        int suitabilityScore,
+        ScoreBreakdownDto scoreBreakdown,
+        String stylingRationale,
+        int daysSinceLastWornSum,
+        int neverWornCount,
+        double normalizedDaysSinceLastWorn,
+        boolean hasExpandRotationGoal
+    ) {
+        this(
+            UUID.randomUUID(),
+            candidate,
+            suitabilityScore,
+            scoreBreakdown,
+            stylingRationale,
+            daysSinceLastWornSum,
+            candidate.getFormalityDelta(),
+            neverWornCount,
+            normalizedDaysSinceLastWorn,
+            hasExpandRotationGoal
         );
     }
 
@@ -44,41 +75,80 @@ public record ScoredOutfit(
         int scoreCmp = Integer.compare(b.suitabilityScore(), a.suitabilityScore());
         if (scoreCmp != 0) return scoreCmp;
 
-        // 2. Least recently worn (larger days sum first)
-        int wearCmp = Integer.compare(b.daysSinceLastWornSum(), a.daysSinceLastWornSum());
-        if (wearCmp != 0) return wearCmp;
+        // If EXPAND_ROTATION is active for both candidates, prioritize rotation discovery
+        if (a.hasExpandRotationGoal() && b.hasExpandRotationGoal()) {
+            // 2a. Never-worn garment count (descending)
+            int neverWornCmp = Integer.compare(b.neverWornCount(), a.neverWornCount());
+            if (neverWornCmp != 0) return neverWornCmp;
 
-        // 3. Higher color harmony sub-score (descending)
-        int colorCmp = Integer.compare(
-            b.scoreBreakdown().colorHarmony(),
-            a.scoreBreakdown().colorHarmony()
-        );
-        if (colorCmp != 0) return colorCmp;
+            // 3a. Normalized days since last wear (descending: longer rested clothes first)
+            int wearCmp = Double.compare(b.normalizedDaysSinceLastWorn(), a.normalizedDaysSinceLastWorn());
+            if (wearCmp != 0) return wearCmp;
 
-        // 4. Lower formality delta (ascending: 0 is better than 1, etc.)
-        int deltaCmp = Integer.compare(a.formalityDelta(), b.formalityDelta());
-        if (deltaCmp != 0) return deltaCmp;
+            // 4a. Higher color harmony sub-score (descending)
+            int colorCmp = Integer.compare(
+                b.scoreBreakdown().colorHarmony(),
+                a.scoreBreakdown().colorHarmony()
+            );
+            if (colorCmp != 0) return colorCmp;
 
-        // 5. Stable lexicographical UUID comparison
-        int topCmp = a.candidate().top().getId().compareTo(b.candidate().top().getId());
-        if (topCmp != 0) return topCmp;
+            // 5a. Lower formality delta (ascending: 0 is better than 1, etc.)
+            int deltaCmp = Integer.compare(a.formalityDelta(), b.formalityDelta());
+            if (deltaCmp != 0) return deltaCmp;
+        } else if (a.hasExpandRotationGoal() != b.hasExpandRotationGoal()) {
+            return Boolean.compare(b.hasExpandRotationGoal(), a.hasExpandRotationGoal());
+        } else {
+            // Standard / default ranking (preserves Stage 4A baseline harmony prioritization)
+            // 2b. Never-worn garment count (descending: outfits activating unworn items prioritized)
+            int neverWornCmp = Integer.compare(b.neverWornCount(), a.neverWornCount());
+            if (neverWornCmp != 0) return neverWornCmp;
 
-        int bottomCmp = a.candidate().bottom().getId().compareTo(b.candidate().bottom().getId());
-        if (bottomCmp != 0) return bottomCmp;
+            // 3b. Higher color harmony sub-score (descending)
+            int colorCmp = Integer.compare(
+                b.scoreBreakdown().colorHarmony(),
+                a.scoreBreakdown().colorHarmony()
+            );
+            if (colorCmp != 0) return colorCmp;
 
-        int footwearCmp = a.candidate().footwear().getId().compareTo(b.candidate().footwear().getId());
-        if (footwearCmp != 0) return footwearCmp;
+            // 4b. Lower formality delta (ascending)
+            int deltaCmp = Integer.compare(a.formalityDelta(), b.formalityDelta());
+            if (deltaCmp != 0) return deltaCmp;
 
-        if (a.candidate().outerwear() != null && b.candidate().outerwear() != null) {
-            return a.candidate().outerwear().getId().compareTo(b.candidate().outerwear().getId());
-        } else if (a.candidate().outerwear() != null) {
-            return -1;
-        } else if (b.candidate().outerwear() != null) {
-            return 1;
+            // 5b. Normalized days since last wear (descending)
+            int wearCmp = Double.compare(b.normalizedDaysSinceLastWorn(), a.normalizedDaysSinceLastWorn());
+            if (wearCmp != 0) return wearCmp;
         }
 
-        return 0;
+        // 6. Stable lexicographical UUID comparison across ALL slots (top, bottom, footwear, outerwear, accessory)
+        return compareStableSlots(a.candidate(), b.candidate());
     };
+
+    private static int compareStableSlots(CandidateOutfit a, CandidateOutfit b) {
+        int topCmp = a.top().getId().compareTo(b.top().getId());
+        if (topCmp != 0) return topCmp;
+
+        int bottomCmp = a.bottom().getId().compareTo(b.bottom().getId());
+        if (bottomCmp != 0) return bottomCmp;
+
+        int footwearCmp = a.footwear().getId().compareTo(b.footwear().getId());
+        if (footwearCmp != 0) return footwearCmp;
+
+        int outerCmp = compareOptionalSlot(a.outerwear(), b.outerwear());
+        if (outerCmp != 0) return outerCmp;
+
+        return compareOptionalSlot(a.accessory(), b.accessory());
+    }
+
+    private static int compareOptionalSlot(WardrobeItem a, WardrobeItem b) {
+        if (a != null && b != null) {
+            return a.getId().compareTo(b.getId());
+        } else if (a != null) {
+            return -1; // Present item comes before absent item
+        } else if (b != null) {
+            return 1;
+        }
+        return 0;
+    }
 
     /**
      * Comparator for min-heap priority queue.

@@ -51,6 +51,8 @@ import org.springframework.http.HttpStatus;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -498,5 +500,42 @@ class OutfitPersistenceServiceImplTest {
         assertThat(firstItem.primaryColor()).isEqualTo(Color.NAVY);
         assertThat(firstItem.name()).isEqualTo("Oxford Shirt");
         assertThat(firstItem.downloadUrl()).isNull(); // Image is null since item was deleted, but all snapshot metadata is preserved!
+    }
+
+    @Test
+    @DisplayName("getRecentItemWearDays calculates exact days between wear date and user's reference date")
+    void testGetRecentItemWearDaysWithReferenceDate() {
+        UUID itemId1 = UUID.randomUUID(); // worn 30 days ago
+        UUID itemId2 = UUID.randomUUID(); // worn 31 days ago
+        UUID itemId3 = UUID.randomUUID(); // worn 0 days ago (today)
+
+        LocalDate userToday = LocalDate.of(2026, 11, 3);
+        LocalDate worn30DaysAgo = userToday.minusDays(30);
+        LocalDate worn31DaysAgo = userToday.minusDays(31);
+
+        List<Object[]> rows = List.of(
+            new Object[]{itemId1, worn30DaysAgo},
+            new Object[]{itemId2, worn31DaysAgo},
+            new Object[]{itemId3, userToday}
+        );
+
+        when(outfitWearLogRepository.findLatestWornDatesByUserId(userId)).thenReturn(rows);
+
+        Map<UUID, Integer> wearDays = outfitPersistenceService.getRecentItemWearDays(userId, userToday);
+
+        assertThat(wearDays).containsEntry(itemId1, 30);
+        assertThat(wearDays).containsEntry(itemId2, 31);
+        assertThat(wearDays).containsEntry(itemId3, 0);
+    }
+
+    @Test
+    @DisplayName("resolveZoneId properly resolves valid IANA zones and falls back to UTC on invalid or missing input")
+    void testResolveZoneIdBehavior() {
+        assertThat(OutfitPersistenceServiceImpl.resolveZoneId("America/New_York")).isEqualTo(ZoneId.of("America/New_York"));
+        assertThat(OutfitPersistenceServiceImpl.resolveZoneId("Asia/Tokyo")).isEqualTo(ZoneId.of("Asia/Tokyo"));
+        assertThat(OutfitPersistenceServiceImpl.resolveZoneId("UTC").normalized()).isEqualTo(ZoneOffset.UTC);
+        assertThat(OutfitPersistenceServiceImpl.resolveZoneId(null)).isEqualTo(ZoneOffset.UTC);
+        assertThat(OutfitPersistenceServiceImpl.resolveZoneId("   ")).isEqualTo(ZoneOffset.UTC);
+        assertThat(OutfitPersistenceServiceImpl.resolveZoneId("Invalid/NonExistent_Zone")).isEqualTo(ZoneOffset.UTC);
     }
 }

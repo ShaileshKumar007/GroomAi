@@ -77,9 +77,13 @@ erDiagram
         uuid user_id FK, UK
         varchar primary_style
         varchar preferred_fit
+        boolean profile_completed "V4: Completion flag"
         jsonb color_preferences
         jsonb avoided_colors
+        jsonb pattern_preferences "V4: Preferred patterns"
+        jsonb avoided_patterns "V4: Avoided patterns"
         varchar default_formality
+        jsonb style_goals "V4: Personal style goals"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -186,8 +190,8 @@ Stores demographic profile and explicit, unbundled privacy consents.
 
 ---
 
-### 3.3 Table: `style_preferences` (V2 Wardrobe Schema)
-Stores user style preferences, preferred fits, and color affinities.
+### 3.3 Table: `style_preferences` (V2/V4 Wardrobe & Style Evolution)
+Stores user style preferences, preferred fits, color affinities, pattern preferences, and style goals.
 
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
@@ -195,9 +199,13 @@ Stores user style preferences, preferred fits, and color affinities.
 | `user_id` | `UUID` | `NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE` | Associated user identity. |
 | `primary_style` | `VARCHAR(50)` | `NOT NULL DEFAULT 'CASUAL'` | Primary style aesthetic (`CASUAL`, `SMART_CASUAL`, `MINIMALIST`, `CLASSIC`, `STREETWEAR`, `PREPPY`, `ATHLEISURE`). |
 | `preferred_fit` | `VARCHAR(32)` | `NOT NULL DEFAULT 'REGULAR'` | Preferred fit (`SLIM`, `REGULAR`, `RELAXED`, `OVERSIZED`). |
+| `profile_completed` | `BOOLEAN` | `NOT NULL DEFAULT FALSE` | Flag indicating explicit profile completion via PUT (`true`) vs unconfigured baseline (`false`). Added in V4. |
 | `color_preferences` | `JSONB` | `NOT NULL DEFAULT '[]'::jsonb` | JSON array of favorite color codes (e.g. `["NAVY", "WHITE", "OLIVE"]`). |
 | `avoided_colors` | `JSONB` | `NOT NULL DEFAULT '[]'::jsonb` | JSON array of colors the user prefers not to wear. |
+| `pattern_preferences` | `JSONB` | `NOT NULL DEFAULT '[]'::jsonb` | JSON array of preferred pattern codes (e.g. `["SOLID", "STRIPED"]`). Added in V4. |
+| `avoided_patterns` | `JSONB` | `NOT NULL DEFAULT '[]'::jsonb` | JSON array of avoided pattern codes. Added in V4. |
 | `default_formality` | `VARCHAR(32)` | `NOT NULL DEFAULT 'CASUAL'` | Default formality level (`CASUAL`, `SMART_CASUAL`, `BUSINESS_CASUAL`, `FORMAL`). |
+| `style_goals` | `JSONB` | `NOT NULL DEFAULT '[]'::jsonb` | JSON array of high-level goals (`LOOK_SHARPER`, `EXPAND_ROTATION`, `TRY_NEW_COLORS`, `COMFORT_FIRST`, `MINIMAL_EFFORT`). Added in V4. |
 | `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT NOW()` | Record creation timestamp. |
 | `updated_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT NOW()` | Record last update timestamp. |
 

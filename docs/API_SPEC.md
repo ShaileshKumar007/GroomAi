@@ -228,34 +228,67 @@ List endpoints support pagination:
 ### 3.4 Get Style Preferences
 - **Method & Path:** `GET /api/v1/profile/style-preferences`
 - **Authentication:** Bearer Token
+- **Semantics:** Resolves authenticated user from token principal. For an unconfigured user, returns documented defaults with `profileCompleted: false` without creating an unconfigured row in the database.
 - **Responses:**
   - `200 OK`:
     ```json
     {
-      "primaryStyle": "SMART_CASUAL",
+      "profileCompleted": false,
+      "primaryStyle": "CASUAL",
       "preferredFit": "REGULAR",
-      "colorPreferences": ["NAVY", "WHITE", "OLIVE", "BEIGE"],
-      "avoidedColors": ["YELLOW", "NEON_GREEN"],
+      "colorPreferences": [],
+      "avoidedColors": [],
+      "patternPreferences": [],
+      "avoidedPatterns": [],
       "defaultFormality": "CASUAL",
-      "updatedAt": "2026-10-16T08:32:00Z"
+      "styleGoals": [],
+      "updatedAt": "2026-11-02T16:00:00Z"
     }
     ```
 
-### 3.5 Update Style Preferences
+### 3.5 Update Style Preferences (Complete Replacement)
 - **Method & Path:** `PUT /api/v1/profile/style-preferences`
 - **Authentication:** Bearer Token
+- **Semantics:** Complete resource replacement. Validates all required fields, enforces collection size bounds, duplicate checks, and color/pattern intersection constraints. **Sets `profileCompleted = true`**.
 - **Request Body:**
   ```json
   {
-    "primaryStyle": "MINIMALIST",
-    "preferredFit": "SLIM",
-    "colorPreferences": ["BLACK", "WHITE", "GREY"],
-    "avoidedColors": ["RED"],
-    "defaultFormality": "SMART_CASUAL"
+    "primaryStyle": "SMART_CASUAL",
+    "preferredFit": "REGULAR",
+    "colorPreferences": ["NAVY", "WHITE", "OLIVE"],
+    "avoidedColors": ["YELLOW"],
+    "patternPreferences": ["SOLID", "STRIPED"],
+    "avoidedPatterns": ["FLORAL"],
+    "defaultFormality": "SMART_CASUAL",
+    "styleGoals": ["LOOK_SHARPER", "EXPAND_ROTATION"]
+  }
+  ```
+- **Validation Rules:**
+  - `@NotNull` on all 8 properties.
+  - `colorPreferences`: max 10, no duplicates.
+  - `avoidedColors`: max 10, no duplicates. Must not intersect with `colorPreferences`.
+  - `patternPreferences`: max 5, no duplicates.
+  - `avoidedPatterns`: max 5, no duplicates. Must not intersect with `patternPreferences`.
+  - `styleGoals`: max 3, no duplicates.
+  - Valid enums: `PrimaryStyle`, `PreferredFit`, `FormalityLevel`, `Color`, `Pattern`, `StyleGoal`.
+- **Responses:**
+  - `200 OK`: Updated style preferences payload with `profileCompleted: true`.
+  - `400 Bad Request`: `VALIDATION_FAILED` if any constraints fail.
+
+### 3.6 Partially Update Style Preferences (Patch)
+- **Method & Path:** `PATCH /api/v1/profile/style-preferences`
+- **Authentication:** Bearer Token
+- **Semantics:** Updates only supplied non-null fields. Omitted fields are preserved. **Preserves existing `profileCompleted` state** (does not automatically complete an unconfigured profile). Supplying an explicit empty array `[]` clears that collection.
+- **Request Body:**
+  ```json
+  {
+    "avoidedColors": ["RED", "YELLOW"],
+    "colorPreferences": []
   }
   ```
 - **Responses:**
-  - `200 OK`: Updated style preferences payload.
+  - `200 OK`: Updated style preferences payload with preserved `profileCompleted` value.
+  - `400 Bad Request`: `VALIDATION_FAILED` if supplied fields or resulting effective profile state violate constraints.
 
 ---
 

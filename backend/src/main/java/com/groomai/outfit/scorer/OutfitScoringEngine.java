@@ -7,13 +7,17 @@ import com.groomai.outfit.enums.WeatherCondition;
 import com.groomai.outfit.model.CandidateOutfit;
 import com.groomai.outfit.model.ScoredOutfit;
 import com.groomai.user.entity.StylePreferences;
+import com.groomai.user.enums.StyleGoal;
 import com.groomai.wardrobe.entity.WardrobeItem;
+import com.groomai.wardrobe.enums.Color;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -54,6 +58,18 @@ public class OutfitScoringEngine {
         StylePreferences preferences,
         Map<UUID, Integer> wearDaysMap
     ) {
+        return scoreOutfit(candidate, occasion, temperatureBracket, weatherCondition, preferences, wearDaysMap, Collections.emptySet());
+    }
+
+    public Optional<ScoredOutfit> scoreOutfit(
+        CandidateOutfit candidate,
+        Occasion occasion,
+        TemperatureBracket temperatureBracket,
+        WeatherCondition weatherCondition,
+        StylePreferences preferences,
+        Map<UUID, Integer> wearDaysMap,
+        Set<Color> recentlyWornColors
+    ) {
         List<WardrobeItem> items = candidate.getAllItems();
 
         // 1. Formality gate
@@ -75,7 +91,7 @@ public class OutfitScoringEngine {
         var patternResult = patternScorer.score(items);
 
         // 5. User preferences
-        var preferenceResult = preferenceScorer.score(items, preferences);
+        var preferenceResult = preferenceScorer.score(candidate, preferences, colorResult.score(), recentlyWornColors);
 
         // 6. Wear history penalty
         var wearResult = wearScorer.score(items, wearDaysMap);
@@ -98,12 +114,35 @@ public class OutfitScoringEngine {
         rationale.append(formalityResult.rationale()).append(" ");
         rationale.append(seasonWeatherResult.rationale());
 
+        // Calculate never-worn count, normalized days since last wear, and expand rotation goal
+        int neverWornCount = 0;
+        int wornItemCount = 0;
+        long totalWornDays = 0;
+
+        for (WardrobeItem item : items) {
+            Integer days = wearDaysMap != null ? wearDaysMap.get(item.getId()) : null;
+            if (days == null) {
+                neverWornCount++;
+            } else {
+                wornItemCount++;
+                totalWornDays += days;
+            }
+        }
+
+        double normalizedDaysSinceLastWorn = wornItemCount > 0 ? (double) totalWornDays / wornItemCount : 0.0;
+
+        boolean hasExpandRotation = preferences != null && preferences.getStyleGoals() != null
+            && preferences.getStyleGoals().stream().anyMatch(g -> g != null && StyleGoal.EXPAND_ROTATION.name().equalsIgnoreCase(g.trim()));
+
         ScoredOutfit scoredOutfit = new ScoredOutfit(
             candidate,
             suitabilityScore,
             breakdown,
             rationale.toString().trim(),
-            wearResult.daysSinceWornSum()
+            wearResult.daysSinceWornSum(),
+            neverWornCount,
+            normalizedDaysSinceLastWorn,
+            hasExpandRotation
         );
 
         return Optional.of(scoredOutfit);

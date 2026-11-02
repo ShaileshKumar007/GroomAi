@@ -359,14 +359,14 @@ public class OutfitPersistenceServiceImpl implements OutfitPersistenceService {
 
     @Override
     @Transactional(readOnly = true)
-    public Map<UUID, Integer> getRecentItemWearDays(UUID userId) {
+    public Map<UUID, Integer> getRecentItemWearDays(UUID userId, LocalDate referenceDate) {
         List<Object[]> rows = outfitWearLogRepository.findLatestWornDatesByUserId(userId);
         if (rows == null || rows.isEmpty()) {
             return Collections.emptyMap();
         }
 
         Map<UUID, Integer> wearDaysMap = new HashMap<>();
-        LocalDate today = LocalDate.now();
+        LocalDate today = (referenceDate != null) ? referenceDate : LocalDate.now(ZoneOffset.UTC);
 
         for (Object[] row : rows) {
             UUID itemId = (UUID) row[0];
@@ -378,6 +378,12 @@ public class OutfitPersistenceServiceImpl implements OutfitPersistenceService {
         }
 
         return wearDaysMap;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, Integer> getRecentItemWearDays(UUID userId) {
+        return getRecentItemWearDays(userId, LocalDate.now(ZoneOffset.UTC));
     }
 
     private SavedOutfitResponseDto mapToSavedOutfitDto(Outfit outfit) {
@@ -520,7 +526,7 @@ public class OutfitPersistenceServiceImpl implements OutfitPersistenceService {
         }
     }
 
-    private ZoneId resolveZoneId(String timezoneStr) {
+    public static ZoneId resolveZoneId(String timezoneStr) {
         if (timezoneStr != null && !timezoneStr.isBlank()) {
             try {
                 return ZoneId.of(timezoneStr.trim());
