@@ -16,6 +16,7 @@ import com.groomai.user.entity.StylePreferences;
 import com.groomai.user.repository.StylePreferencesRepository;
 import com.groomai.wardrobe.entity.WardrobeItem;
 import com.groomai.wardrobe.enums.Category;
+import com.groomai.wardrobe.enums.Color;
 import com.groomai.wardrobe.enums.ItemStatus;
 import com.groomai.wardrobe.enums.Season;
 import com.groomai.wardrobe.repository.WardrobeItemRepository;
@@ -26,13 +27,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.PriorityQueue;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -131,10 +136,25 @@ public class OutfitGeneratorServiceImpl implements OutfitGeneratorService {
         // 4. Style preferences lookup (falls back gracefully to neutral baseline if absent)
         StylePreferences preferences = stylePreferencesRepository.findByUserId(userId).orElse(null);
 
-        // 5. Wear history lookup (reads persistent wear logs; falls back to zero penalty if absent)
+        // 5. Wear history lookup in user's timezone (effectiveDate captured once per request)
+        ZoneId userZoneId = OutfitPersistenceServiceImpl.resolveZoneId(request != null ? request.timezone() : null);
+        LocalDate effectiveDate = LocalDate.now(userZoneId);
+
         Map<UUID, Integer> wearDaysMap = (outfitPersistenceService != null)
-            ? outfitPersistenceService.getRecentItemWearDays(userId)
+            ? outfitPersistenceService.getRecentItemWearDays(userId, effectiveDate)
             : Collections.emptyMap();
+
+        // Extract primary colors worn within the last 30 days (for TRY_NEW_COLORS style goal)
+        // Inclusive boundary: 30 days is recently worn; 31 days is outside the window.
+        Set<Color> recentlyWornColors = new HashSet<>();
+        if (wearDaysMap != null && !wearDaysMap.isEmpty()) {
+            for (WardrobeItem item : activeWardrobe) {
+                Integer days = wearDaysMap.get(item.getId());
+                if (days != null && days <= 30 && item.getPrimaryColor() != null) {
+                    recentlyWornColors.add(item.getPrimaryColor());
+                }
+            }
+        }
 
         // 6. Outerwear evaluation criteria
         boolean shouldEvaluateOuterwear = !filteredOuterwear.isEmpty()
@@ -156,7 +176,7 @@ public class OutfitGeneratorServiceImpl implements OutfitGeneratorService {
 
                     CandidateOutfit coreCandidate = new CandidateOutfit(top, bottom, shoe);
                     Optional<ScoredOutfit> scoredCoreOpt = scoringEngine.scoreOutfit(
-                        coreCandidate, occasion, temperatureBracket, weatherCondition, preferences, wearDaysMap
+                        coreCandidate, occasion, temperatureBracket, weatherCondition, preferences, wearDaysMap, recentlyWornColors
                     );
 
                     ScoredOutfit chosenScored = null;
@@ -171,7 +191,7 @@ public class OutfitGeneratorServiceImpl implements OutfitGeneratorService {
 
                             CandidateOutfit layeredCandidate = new CandidateOutfit(top, bottom, shoe, outer);
                             Optional<ScoredOutfit> scoredLayeredOpt = scoringEngine.scoreOutfit(
-                                layeredCandidate, occasion, temperatureBracket, weatherCondition, preferences, wearDaysMap
+                                layeredCandidate, occasion, temperatureBracket, weatherCondition, preferences, wearDaysMap, recentlyWornColors
                             );
 
                             if (scoredLayeredOpt.isPresent()) {

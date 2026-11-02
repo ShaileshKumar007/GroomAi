@@ -96,7 +96,7 @@ class FlywayMigrationTest {
                 .load();
 
             int migrationsExecuted = flyway.migrate().migrationsExecuted;
-            assertThat(migrationsExecuted).isEqualTo(3);
+            assertThat(migrationsExecuted).isEqualTo(4);
 
             List<String> tables = queryBaseTables(postgres);
             assertThat(tables).containsExactlyInAnyOrder(EXPECTED_V2_TABLES);
@@ -122,12 +122,20 @@ class FlywayMigrationTest {
 
             List<String> wearLogColumns = queryColumns(postgres, "outfit_wear_logs");
             assertThat(wearLogColumns).contains("snapshot");
+
+            // Verify columns added in V4
+            List<String> stylePrefColumns = queryColumns(postgres, "style_preferences");
+            assertThat(stylePrefColumns).contains(
+                "primary_style", "preferred_fit", "default_formality",
+                "color_preferences", "avoided_colors", "pattern_preferences",
+                "avoided_patterns", "style_goals", "profile_completed"
+            );
         }
     }
 
     @Test
     @EnabledIf("isDockerAvailable")
-    @DisplayName("Incremental migration: V2 and V3 successfully apply on top of existing Phase 1 database")
+    @DisplayName("Incremental migration: V2, V3, and V4 successfully apply on top of existing Phase 1 database")
     void testFlywayIncrementalMigrationFromPhase1() throws Exception {
         try (PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
                 .withDatabaseName("groomai_test")
@@ -184,6 +192,24 @@ class FlywayMigrationTest {
 
             List<String> wearLogColumns = queryColumns(postgres, "outfit_wear_logs");
             assertThat(wearLogColumns).contains("snapshot");
+
+            // 4. Migrate V4 on top of existing Phase 3 database
+            Flyway flywayV4 = Flyway.configure()
+                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .locations("classpath:db/migration")
+                .target("4")
+                .load();
+
+            int v4Migrations = flywayV4.migrate().migrationsExecuted;
+            assertThat(v4Migrations).isEqualTo(1);
+
+            // Verify V4 style_preferences evolved structure
+            List<String> stylePrefColumns = queryColumns(postgres, "style_preferences");
+            assertThat(stylePrefColumns).contains(
+                "primary_style", "preferred_fit", "default_formality",
+                "color_preferences", "avoided_colors", "pattern_preferences",
+                "avoided_patterns", "style_goals", "profile_completed"
+            );
         }
     }
 

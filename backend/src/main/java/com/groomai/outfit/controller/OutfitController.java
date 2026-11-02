@@ -54,11 +54,19 @@ public class OutfitController {
     @PostMapping("/generate")
     public ResponseEntity<GenerateOutfitResponseDto> generateOutfits(
         @AuthenticationPrincipal UserPrincipal principal,
+        @org.springframework.web.bind.annotation.RequestHeader(value = "X-Timezone", required = false) String timezoneHeader,
         @Valid @RequestBody(required = false) GenerateOutfitRequestDto request
     ) {
+        String tz = (request != null && request.timezone() != null && !request.timezone().isBlank())
+            ? request.timezone()
+            : timezoneHeader;
+        GenerateOutfitRequestDto effectiveRequest = (request != null)
+            ? new GenerateOutfitRequestDto(request.occasion(), request.temperatureBracket(), request.weatherCondition(), request.limit(), tz)
+            : new GenerateOutfitRequestDto(null, null, null, 3, tz);
+
         GenerateOutfitResponseDto response = outfitGeneratorService.generateOutfits(
             principal.id(),
-            (request != null) ? request : new GenerateOutfitRequestDto(null, null, null, 3)
+            effectiveRequest
         );
         return ResponseEntity.ok(response);
     }

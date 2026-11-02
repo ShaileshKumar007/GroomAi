@@ -47,8 +47,11 @@ The table below maintains separate status indicators for implementation, testing
 | **Stage 4B: Deterministic Engine** | Implemented (Backend) | 100% Passing (235 tests) | Verified locally | `feature/phase-4-outfits` | In PR | Tested locally | **Completed** |
 | **Stage 4C.1: Mobile Outfit Experience** | Implemented (Mobile) | 100% Passing (160 tests) | Verified locally | `feature/phase-4-outfits` | In PR | Tested locally | **Completed** |
 | **Stage 4C.2: Persistence & Wear Logging** | Implemented (Full-Stack) | 100% Passing (253 tests) | Verified locally | `feature/phase-4-outfits` | In PR | Tested locally | **Completed** |
-| **Stage 4C.2.1: Data Integrity Hardening** | Implemented (Full-Stack) | 100% Passing (255 backend, 169 mobile) | Verified locally | `feature/phase-4-outfits` | In Working Tree | Tested locally | **Completed** |
-| **Stage 4C.3: AI Styling Adapter** | Not started | Not started | Not started | TBD | Unmerged | Not started | **Next** |
+| **Stage 4C.2.1: Data Integrity Hardening** | Implemented (Full-Stack) | 100% Passing (255 backend, 169 mobile) | Verified in CI (`#10`) | `feature/phase-4-outfits` | **Merged / In PR #10** | Tested locally | **Completed** |
+| **Stage 4C.3.1: Style Profile Foundation** | Implemented (Backend) | 100% Passing (263 passed, 29 skipped for Docker) | Verified locally | `feature/phase-4-outfits` | In Working Tree | Tested locally | **Completed** |
+| **Stage 4C.3.2: Recommendation Personalization** | Not started | Not started | Not started | `feature/phase-4-outfits` | Unmerged | Not started | **Next** |
+| **Stage 4C.3.3: Feedback & Wardrobe Utilization** | Not started | Not started | Not started | `feature/phase-4-outfits` | Unmerged | Not started | **Pending** |
+| **Stage 4C.3.4: Mobile Personalization Experience** | Not started | Not started | Not started | `feature/phase-4-outfits` | Unmerged | Not started | **Pending** |
 | **Phase 5: Privacy & Account Erasure** | Outbox ready | Unit tests only | Not started | TBD | Unmerged | Not started | **Pending** |
 | **Phase 6: Cloud Deployment & Beta** | Not started | Not started | Not started | TBD | Unmerged | Not started | **Pending** |
 
@@ -182,12 +185,62 @@ The table below maintains separate status indicators for implementation, testing
   - Backend: **255 tests run, 0 failures, 0 errors, 19 skipped** (Docker).
   - Mobile: **18 test suites, 169 tests run, 0 failures**. TypeScript strict check (`npm run type-check`): **0 errors**.
 
+### 3.12 Phase 3 / Stage 4C.3.1: Style Profile Foundation
+- **Capabilities Delivered:**
+  - **Database Migration (`V4__style_preferences_evolution.sql`):**
+    - `style_preferences.profile_completed`: Dedicated boolean column defaulting to `FALSE`.
+    - `style_preferences.pattern_preferences`: JSONB array defaulting to `'[]'::jsonb`.
+    - `style_preferences.avoided_patterns`: JSONB array defaulting to `'[]'::jsonb`.
+    - `style_preferences.style_goals`: JSONB array defaulting to `'[]'::jsonb`.
+  - **Entity & Enums:**
+    - Updated `StylePreferences` entity with Hibernate `@JdbcTypeCode(SqlTypes.JSON)` mappings for pattern preferences, avoided patterns, and style goals.
+    - Introduced domain enums: `PrimaryStyle` (`CASUAL`, `SMART_CASUAL`, `MINIMALIST`, `CLASSIC`, `STREETWEAR`, `PREPPY`, `ATHLEISURE`), `PreferredFit` (`SLIM`, `REGULAR`, `RELAXED`, `OVERSIZED`), and `StyleGoal` (`LOOK_SHARPER`, `EXPAND_ROTATION`, `TRY_NEW_COLORS`, `COMFORT_FIRST`, `MINIMAL_EFFORT`).
+  - **Service & Business Validation Layer:**
+    - `StylePreferencesServiceImpl`: Implemented strict validation for PUT/PATCH operations (bounds checking, duplicate detection, and cross-set intersection rejection between preferred and avoided colors/patterns).
+    - Concurrency safety: Implemented `insertStylePreferencesIdempotent` native query (`ON CONFLICT (user_id) DO NOTHING`) to eliminate PostgreSQL transaction rollback hazards during first-time concurrent profile creation.
+    - Strict completion semantics: `PUT` replaces entire resource and sets `profile_completed = true`; `PATCH` updates only supplied fields and preserves existing `profile_completed` state (unconfigured profile remains `profile_completed = false`). Supplying an explicit empty array `[]` clears collection.
+  - **API Endpoints:**
+    - `GET /api/v1/profile/style-preferences`: Returns defaults with `profileCompleted = false` without creating database records for unconfigured users.
+    - `PUT /api/v1/profile/style-preferences`: Full replacement with `profileCompleted = true`.
+    - `PATCH /api/v1/profile/style-preferences`: Partial update preserving `profileCompleted`.
+- **Verification & Evidence:**
+  - Backend: **292 tests run, 0 failures, 0 errors, 29 skipped** (Docker integration tests guarded via `@EnabledIf("isDockerAvailable")`).
+  - Unit tests: 15 `StylePreferencesServiceTest` tests, 12 `StylePreferencesControllerTest` tests.
+  - Integration tests: 5 `StylePreferencesPostgresIntegrationTest` tests.
+
+### 3.13 Phase 3 / Stage 4C.3.2: Recommendation Personalization Engine
+- **Capabilities Delivered:**
+  - **Deterministic Personalization Scorer (`PreferenceCompatibilityScorer`):**
+    - Unconfigured / incomplete profile fallback: Returns exact neutral baseline $S_{\text{explicit}} = 7/10$ when `profileCompleted == false` or preferences are null.
+    - Full explicit alignment formula: $S_{\text{explicit}} = \text{clamp}(0, 10, 5 + \Delta_{\text{color}} + \Delta_{\text{pattern}} + \Delta_{\text{formality}} + \Delta_{\text{style}} + \Delta_{\text{goal}})$. Feedback adjustment $A_{\text{feedback}} = 0$ for Stage 4C.3.2.
+    - Color rules: $\Delta_{\text{color}} \in [-4, +3]$ (+3 if at least one garment has a primary color in `colorPreferences` [positive bonus strictly capped at +3]; +1 only if no primary color matches and at least one secondary color matches; -4 if any garment's primary or secondary color is in `avoidedColors`; simultaneous preferred and avoided net together, e.g. +3 - 4 = -1, +1 - 4 = -3).
+    - Pattern rules: $\Delta_{\text{pattern}} \in [-3, +2]$ (+2 for preferred pattern match, -3 for avoided pattern match).
+    - Formality rules: $\Delta_{\text{formality}} \in [0, +1]$ (+1 if modal formality matches `defaultFormality`).
+    - Grounded style rules for all 7 styles: `CASUAL`, `SMART_CASUAL`, `MINIMALIST`, `CLASSIC`, `STREETWEAR` (positive alignment requires all garments to be `CASUAL` and contain supported street accents/graphics), `PREPPY` (positive alignment requires modal `SMART_CASUAL`, preppy palette anchors, and classic `SOLID`/`STRIPED`/`CHECKED` patterns without extra pattern constraints), and `ATHLEISURE` (neutral 0), strictly mapped to existing wardrobe metadata (`category`, `formalityLevel`, `pattern`, `primaryColor`, `secondaryColor`) without unsupported attributes or non-existent pattern enum constants.
+    - Grounded goal rules: `LOOK_SHARPER` (+1 if modal formality $\ge 2$ and $\Delta_F \le 1$), `TRY_NEW_COLORS` (+1 if $S_{\text{color}} \ge 28$ and contains unworn primary color in last 30 days in user timezone), capped at $+1$ total across qualifying goals. `EXPAND_ROTATION` (handled in ranking tie-breaker), `COMFORT_FIRST`, and `MINIMAL_EFFORT` have strictly zero scoring impact ($0$ pts) as deferred goals for Stage 4C.3.2.
+  - **Deterministic Ranking & Tie-Breaking (`ScoredOutfit`):**
+    - Added fields: `neverWornCount`, `normalizedDaysSinceLastWorn`, `hasExpandRotationGoal`.
+    - `hasExpandRotationGoal` verified as profile-level constant across all evaluated candidates in a generation run.
+    - Updated `RANKING_COMPARATOR`:
+      - Tier 1: Total suitability score descending.
+      - Tier 2 (`hasExpandRotationGoal`): Never-worn garment count descending $\to$ normalized days since last wear descending $\to$ color harmony descending $\to$ formality delta ascending.
+      - Tier 2 (Standard): Never-worn garment count descending $\to$ color harmony descending $\to$ formality delta ascending $\to$ normalized days since last wear descending.
+      - Tier 6: Lexicographical UUID tie-breaking across all 5 slots (`top`, `bottom`, `footwear`, `outerwear`, `accessory`).
+  - **Engine Integration (`OutfitScoringEngine` & `OutfitGeneratorServiceImpl`):**
+    - User timezone resolution: Resolves IANA timezone from `X-Timezone` request header or payload (falling back to UTC) and captures `effectiveDate` once per recommendation request.
+    - Connected preferences, color harmony score, and `recentlyWornColors` (extracted once in $O(|activeWardrobe|)$ time from active user items worn $\le 30$ days ago relative to the user's `effectiveDate`; 30 days is recently worn, 31 days is outside the window).
+    - Computed `neverWornCount` and `normalizedDaysSinceLastWorn` without artificial sentinels or N+1 queries.
+- **Verification & Evidence:**
+  - Backend: **316 tests run, 0 failures, 0 errors, 29 skipped** (Docker integration tests guarded via `@EnabledIf("isDockerAvailable")`).
+  - Unit tests: 13 tests in `PreferenceCompatibilityScorerTest` (including Examples 1, 2, 3, 4 from specification and all-CASUAL/all-solid assertions), 7 tests in `ScoredOutfitComparatorTest`, 15 tests in `OutfitGeneratorServiceImplTest`, 13 tests in `OutfitPersistenceServiceImplTest`.
+  - Mobile: **18 test suites, 169 tests run, 0 failures**. TypeScript strict check: **0 errors**.
+
 ---
 
 ## 4. Current Work: Milestone Status & Phase 4 Preparation
 
-- **Active Milestone:** Completed Stage 4C.2.1 (Historical Data Integrity & Wear Logging Hardening); ready for Stage 4C.3 / Stage 4D (Hosted Multimodal AI Styling Adapter).
-- **Prerequisite Status:** Deterministic outfit generation, outfit persistence, wear tracking, immutable snapshots, and idempotent wear logging fully implemented and verified locally.
+- **Active Milestone:** Completed Stage 4C.3.2 (Recommendation Personalization Engine); ready for Stage 4C.3.3 (Recommendation Feedback Persistence & Utilization).
+- **Prerequisite Status:** Style profile foundation and recommendation personalization engine completed and verified across unit, ranking, and integration suites.
 
 ---
 

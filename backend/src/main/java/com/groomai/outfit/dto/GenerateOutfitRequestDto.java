@@ -15,8 +15,18 @@ public record GenerateOutfitRequestDto(
     WeatherCondition weatherCondition,
     @Min(value = 1, message = "Limit must be at least 1")
     @Max(value = 10, message = "Limit must not exceed 10")
-    Integer limit
+    Integer limit,
+    String timezone
 ) {
+    public GenerateOutfitRequestDto(
+        Occasion occasion,
+        TemperatureBracket temperatureBracket,
+        WeatherCondition weatherCondition,
+        Integer limit
+    ) {
+        this(occasion, temperatureBracket, weatherCondition, limit, null);
+    }
+
     public int effectiveLimit() {
         return (limit != null) ? limit : 3;
     }

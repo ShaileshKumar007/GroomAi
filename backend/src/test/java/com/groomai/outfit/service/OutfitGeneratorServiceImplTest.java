@@ -31,11 +31,18 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+
+import com.groomai.user.entity.StylePreferences;
+import com.groomai.user.enums.StyleGoal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -59,6 +66,9 @@ class OutfitGeneratorServiceImplTest {
 
     @Mock
     private ObjectStorageService objectStorageService;
+
+    @Mock
+    private OutfitPersistenceService outfitPersistenceService;
 
     private OutfitScoringEngine scoringEngine;
     private OutfitGeneratorServiceImpl outfitGeneratorService;
@@ -264,5 +274,110 @@ class OutfitGeneratorServiceImplTest {
             );
             assertEquals(firstRunTopOutfitItemId, subsequentRun.outfits().get(0).items().get(0).id());
         }
+    }
+
+    @Test
+    @DisplayName("TRY_NEW_COLORS 30-day vs 31-day boundary: 30 days is recently worn (no bonus); 31 days is outside window (+1 bonus)")
+    void testTryNewColors30DayAnd31DayBoundariesInUserTimezone() {
+        var serviceWithPersistence = new OutfitGeneratorServiceImpl(
+            wardrobeItemRepository,
+            stylePreferencesRepository,
+            objectStorageService,
+            scoringEngine,
+            outfitPersistenceService
+        );
+
+        var topRed = createItem(Category.TOP, "Red Tee", Color.RED, FormalityLevel.CASUAL, Pattern.SOLID, Season.ALL_SEASON, ItemStatus.ACTIVE);
+        var topBlue = createItem(Category.TOP, "Blue Tee", Color.BLUE, FormalityLevel.CASUAL, Pattern.SOLID, Season.ALL_SEASON, ItemStatus.ACTIVE);
+        var bottom = createItem(Category.BOTTOM, "Beige Chinos", Color.BEIGE, FormalityLevel.CASUAL, Pattern.SOLID, Season.ALL_SEASON, ItemStatus.ACTIVE);
+        var shoes = createItem(Category.FOOTWEAR, "Brown Loafers", Color.BROWN, FormalityLevel.CASUAL, Pattern.SOLID, Season.ALL_SEASON, ItemStatus.ACTIVE);
+
+        when(wardrobeItemRepository.findByUserIdAndStatus(testUserId, ItemStatus.ACTIVE))
+            .thenReturn(List.of(topRed, topBlue, bottom, shoes));
+
+        var prefs = StylePreferences.builder()
+            .profileCompleted(true)
+            .primaryStyle("CASUAL")
+            .defaultFormality("CASUAL")
+            .styleGoals(List.of(StyleGoal.TRY_NEW_COLORS.name()))
+            .build();
+        when(stylePreferencesRepository.findByUserId(testUserId)).thenReturn(Optional.of(prefs));
+
+        // In user timezone: Red top worn 30 days ago (recently worn); Blue top worn 31 days ago (unworn color)
+        LocalDate userDate = LocalDate.now(ZoneId.of("America/New_York"));
+        Map<UUID, Integer> wearDays = Map.of(
+            topRed.getId(), 30,
+            topBlue.getId(), 31,
+            bottom.getId(), 5,
+            shoes.getId(), 5
+        );
+        when(outfitPersistenceService.getRecentItemWearDays(eq(testUserId), eq(userDate)))
+            .thenReturn(wearDays);
+
+        var response = serviceWithPersistence.generateOutfits(
+            testUserId,
+            new GenerateOutfitRequestDto(Occasion.CASUAL, null, null, 2, "America/New_York")
+        );
+
+        assertEquals(2, response.outfits().size());
+
+        // The outfit with Blue top should score higher or receive the TRY_NEW_COLORS goal bonus because BLUE is not recently worn (31 days ago)
+        var blueOutfit = response.outfits().stream()
+            .filter(o -> o.items().stream().anyMatch(i -> i.id().equals(topBlue.getId())))
+            .findFirst()
+            .orElseThrow();
+
+        var redOutfit = response.outfits().stream()
+            .filter(o -> o.items().stream().anyMatch(i -> i.id().equals(topRed.getId())))
+            .findFirst()
+            .orElseThrow();
+
+        // Blue outfit gets +1 TRY_NEW_COLORS goal bonus; Red outfit gets 0 (since RED was worn 30 days ago <= 30)
+        assertTrue(blueOutfit.scoreBreakdown().preferenceMatch() > redOutfit.scoreBreakdown().preferenceMatch());
+    }
+
+    @Test
+    @DisplayName("Timezone differences across user and server calendars: effective date uses client timezone")
+    void testTimezoneDifferenceAcrossUserAndServerCalendars() {
+        var serviceWithPersistence = new OutfitGeneratorServiceImpl(
+            wardrobeItemRepository,
+            stylePreferencesRepository,
+            objectStorageService,
+            scoringEngine,
+            outfitPersistenceService
+        );
+
+        var top = createItem(Category.TOP, "White Tee", Color.WHITE, FormalityLevel.CASUAL, Pattern.SOLID, Season.ALL_SEASON, ItemStatus.ACTIVE);
+        var bottom = createItem(Category.BOTTOM, "Jeans", Color.BLUE, FormalityLevel.CASUAL, Pattern.SOLID, Season.ALL_SEASON, ItemStatus.ACTIVE);
+        var shoes = createItem(Category.FOOTWEAR, "Sneakers", Color.WHITE, FormalityLevel.CASUAL, Pattern.SOLID, Season.ALL_SEASON, ItemStatus.ACTIVE);
+
+        when(wardrobeItemRepository.findByUserIdAndStatus(testUserId, ItemStatus.ACTIVE))
+            .thenReturn(List.of(top, bottom, shoes));
+
+        // 1. America/New_York
+        LocalDate expectedNyDate = LocalDate.now(ZoneId.of("America/New_York"));
+        serviceWithPersistence.generateOutfits(
+            testUserId,
+            new GenerateOutfitRequestDto(Occasion.CASUAL, null, null, 1, "America/New_York")
+        );
+        verify(outfitPersistenceService).getRecentItemWearDays(eq(testUserId), eq(expectedNyDate));
+        org.mockito.Mockito.clearInvocations(outfitPersistenceService);
+
+        // 2. Asia/Tokyo
+        LocalDate expectedTokyoDate = LocalDate.now(ZoneId.of("Asia/Tokyo"));
+        serviceWithPersistence.generateOutfits(
+            testUserId,
+            new GenerateOutfitRequestDto(Occasion.CASUAL, null, null, 1, "Asia/Tokyo")
+        );
+        verify(outfitPersistenceService).getRecentItemWearDays(eq(testUserId), eq(expectedTokyoDate));
+        org.mockito.Mockito.clearInvocations(outfitPersistenceService);
+
+        // 3. Invalid timezone falls back to UTC
+        LocalDate expectedUtcDate = LocalDate.now(ZoneOffset.UTC);
+        serviceWithPersistence.generateOutfits(
+            testUserId,
+            new GenerateOutfitRequestDto(Occasion.CASUAL, null, null, 1, "Invalid/NonExistent_Timezone")
+        );
+        verify(outfitPersistenceService).getRecentItemWearDays(eq(testUserId), eq(expectedUtcDate));
     }
 }

@@ -67,6 +67,25 @@ public class StylePreferences {
     @Builder.Default
     private String defaultFormality = "CASUAL";
 
+    @Column(name = "profile_completed", nullable = false)
+    @Builder.Default
+    private boolean profileCompleted = false;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "pattern_preferences", nullable = false, columnDefinition = "jsonb")
+    @Builder.Default
+    private List<String> patternPreferences = new ArrayList<>();
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "avoided_patterns", nullable = false, columnDefinition = "jsonb")
+    @Builder.Default
+    private List<String> avoidedPatterns = new ArrayList<>();
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "style_goals", nullable = false, columnDefinition = "jsonb")
+    @Builder.Default
+    private List<String> styleGoals = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();

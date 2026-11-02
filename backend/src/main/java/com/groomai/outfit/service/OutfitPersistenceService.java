@@ -8,6 +8,8 @@ import com.groomai.outfit.dto.SavedOutfitResponseDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 
@@ -26,5 +28,9 @@ public interface OutfitPersistenceService {
 
     Page<OutfitWearHistoryDto> getWearHistory(UUID userId, Pageable pageable);
 
-    Map<UUID, Integer> getRecentItemWearDays(UUID userId);
+    Map<UUID, Integer> getRecentItemWearDays(UUID userId, LocalDate referenceDate);
+
+    default Map<UUID, Integer> getRecentItemWearDays(UUID userId) {
+        return getRecentItemWearDays(userId, LocalDate.now(ZoneOffset.UTC));
+    }
 }
